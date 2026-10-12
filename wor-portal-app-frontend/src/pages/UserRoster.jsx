@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 
+import {
+  normalizeFaction,
+  isLordFaction,
+  getBaseFaction,
+  heroBelongsToFaction,
+  isHeroLordForFaction,
+  factionToFileName
+} from '../utils/factionUtils';
+
 const UserRoster = ({ userId }) => {
   const [heroes, setHeroes] = useState([]);
   const [userHeroes, setUserHeroes] = useState({});
@@ -247,67 +256,6 @@ const UserRoster = ({ userId }) => {
     Uncommon: 3,
     Common: 4
   };
-
-  // =========================================================
-  // НОРМАЛІЗАЦІЯ НАЗВИ ФРАКЦІЇ
-  // =========================================================
-
-  const normalizeFaction = (name) => {
-    return name
-      ?.trim()
-      .replace(/\s+/g, ' ');
-  };
-
-  // =========================================================
-  // ПЕРЕВІРКА ЧИ ФРАКЦІЯ Є LORD
-  // =========================================================
-
-  const isLordFaction = (faction) => {
-    return normalizeFaction(faction)
-      ?.toLowerCase()
-      .endsWith(' lord');
-  };
-
-  // =========================================================
-  // ОТРИМАТИ БАЗОВУ ФРАКЦІЮ
-  // =========================================================
-
-  const getBaseFaction = (faction) => {
-    const normalized = normalizeFaction(faction);
-
-    if (!normalized) {
-      return null;
-    }
-
-    if (isLordFaction(normalized)) {
-      return normalized
-        .replace(/\s+Lord$/i, '')
-        .trim();
-    }
-
-    return normalized;
-  };
-
-  // =========================================================
-  // ПЕРЕВІРКА НАЛЕЖНОСТІ ГЕРОЯ ДО ФРАКЦІЇ
-  // =========================================================
-
-  const heroBelongsToFaction = (hero, factionName) => {
-    if (!Array.isArray(hero.factions)) {
-      return false;
-    }
-
-    return hero.factions.some((faction) => {
-      const normalized = normalizeFaction(faction);
-
-      if (!normalized) {
-        return false;
-      }
-
-      return getBaseFaction(normalized) === factionName;
-    });
-  };
-
   // =========================================================
   // ФІЛЬТРАЦІЯ
   // =========================================================
@@ -355,25 +303,6 @@ const UserRoster = ({ userId }) => {
 
       return (a.name || '').localeCompare(
         b.name || ''
-      );
-    });
-  };
-
-  // =========================================================
-  // ПЕРЕВІРКА LORD
-  // =========================================================
-
-  const isHeroLordForFaction = (hero, factionName) => {
-    if (!Array.isArray(hero.factions)) {
-      return false;
-    }
-
-    return hero.factions.some((faction) => {
-      const normalized = normalizeFaction(faction);
-
-      return (
-        isLordFaction(normalized) &&
-        getBaseFaction(normalized) === factionName
       );
     });
   };
@@ -509,18 +438,6 @@ const UserRoster = ({ userId }) => {
       );
     })
   );
-
-  // =========================================================
-  // НАЗВА ФАЙЛУ ФРАКЦІЇ
-  // =========================================================
-
-  const factionToFileName = (name) => {
-    return name
-      ?.toLowerCase()
-      .trim()
-      .replace(/\s+/g, '_');
-  };
-
   // =========================================================
   // АДАПТИВНА GRID КАРТОК
   // =========================================================

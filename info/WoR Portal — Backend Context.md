@@ -1,4 +1,10 @@
-# WoR Portal
+Так. Ось **повний актуальний контекст WoR Portal**, уже з урахуванням того, що **модуль Demon Soldiers повністю реалізований тобою: код + Flyway migration + фінальний `demons.json`**.
+
+Можеш зберегти цей блок як актуальний context для наступної роботи.
+
+---
+
+# WoR Portal — Current Project Context
 
 ## Stack
 
@@ -50,7 +56,7 @@ http://localhost:8080/api
 
 JWT:
 
-```text
+```js
 localStorage["token"]
 ```
 
@@ -58,6 +64,23 @@ Header:
 
 ```text
 Authorization: Bearer <token>
+```
+
+Frontend **не додає `/api` вручну**.
+
+Правильно:
+
+```js
+api.get('/heroes')
+api.get('/user-heroes/${userId}')
+api.get('/demon-soldiers')
+```
+
+Неправильно:
+
+```js
+api.get('/api/heroes')
+api.get('/api/demon-soldiers')
 ```
 
 ---
@@ -86,14 +109,33 @@ GET /heroes
 GET /heroes/class/{className}
 ```
 
+Backend:
+
+```http
+GET /api/heroes
+GET /api/heroes/class/{className}
+```
+
 ---
 
 # User Heroes
 
 ```http
 GET /user-heroes/{userId}
+
 POST /user-heroes/{userId}/hero/{heroId}
+
 DELETE /user-heroes/{userId}/hero/{heroId}
+```
+
+Backend:
+
+```http
+GET /api/user-heroes/{userId}
+
+POST /api/user-heroes/{userId}/hero/{heroId}
+
+DELETE /api/user-heroes/{userId}/hero/{heroId}
 ```
 
 ---
@@ -176,9 +218,14 @@ public class Hero {
 
 ```java
 @Entity
-@Table(name = "user_heroes", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "hero_id"})
-})
+@Table(
+        name = "user_heroes",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"user_id", "hero_id"}
+                )
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -213,6 +260,7 @@ public class UserHero {
 @Data
 @Builder
 public class HeroResponseDto {
+
     private Long id;
     private String name;
     private String imageSlug;
@@ -231,6 +279,7 @@ public class HeroResponseDto {
 @Data
 @Builder
 public class UserHeroResponseDto {
+
     private Long id;
     private Long userId;
     private HeroResponseDto hero;
@@ -247,6 +296,7 @@ public class UserHeroResponseDto {
 public class HeroMapper {
 
     public HeroResponseDto toDto(Hero hero) {
+
         if (hero == null) return null;
 
         return HeroResponseDto.builder()
@@ -284,6 +334,7 @@ public class UserHeroMapper {
     private final HeroMapper heroMapper;
 
     public UserHeroResponseDto toDto(UserHero userHero) {
+
         if (userHero == null) return null;
 
         return UserHeroResponseDto.builder()
@@ -414,13 +465,16 @@ public class HeroService {
 
     @Transactional
     public List<HeroResponseDto> getAllHeroes() {
-        return heroRepository.findAll().stream()
+
+        return heroRepository.findAll()
+                .stream()
                 .map(heroMapper::toDto)
                 .toList();
     }
 
     @Transactional
     public HeroResponseDto getHeroById(Long id) {
+
         return heroRepository.findById(id)
                 .map(heroMapper::toDto)
                 .orElseThrow(() ->
@@ -434,7 +488,9 @@ public class HeroService {
     public List<HeroResponseDto> findByClassName(
             String className
     ) {
-        return heroRepository.findAll().stream()
+
+        return heroRepository.findAll()
+                .stream()
                 .filter(hero ->
                         hero.getClassName()
                                 .equalsIgnoreCase(className)
@@ -463,7 +519,9 @@ public class UserHeroService {
 
     @Transactional
     public List findByUserId(Long userId) {
-        return userHeroRepository.findByUserId(userId).stream()
+
+        return userHeroRepository.findByUserId(userId)
+                .stream()
                 .map(userHeroMapper::toDto)
                 .toList();
     }
@@ -473,6 +531,7 @@ public class UserHeroService {
             Long userId,
             Long heroId
     ) {
+
         UserHero userHero =
                 userHeroRepository
                         .findByUserIdAndHeroId(userId, heroId)
@@ -506,10 +565,13 @@ public class UserHeroService {
         if (userHero.getId() != null) {
 
             if (userHero.getAwakeningLevel() < 5) {
+
                 userHero.setAwakeningLevel(
                         userHero.getAwakeningLevel() + 1
                 );
+
             } else {
+
                 userHero.setAwakeningLevel(0);
             }
         }
@@ -525,6 +587,7 @@ public class UserHeroService {
             Long userId,
             Long heroId
     ) {
+
         userHeroRepository
                 .findByUserIdAndHeroId(userId, heroId)
                 .ifPresent(userHeroRepository::delete);
@@ -539,57 +602,57 @@ public class UserHeroService {
 
 ---
 
-# Поточна логіка UserRoster
+# UserRoster
 
 ## Мультифракційність
 
-Герой може належати до **кількох фракцій одночасно**.
+Герой може належати до кількох фракцій.
 
 Наприклад:
 
 ```json
 {
-  "factions": [
-    "Watchguard Lord",
-    "Supreme Arbiters"
-  ]
+    "factions": [
+        "Watchguard Lord",
+        "Supreme Arbiters"
+    ]
 }
 ```
 
-Такий герой повинен відображатися:
+UI може показувати одного героя в декількох секціях.
 
 ```text
 Watchguard
-  └── Lords
-       └── Hero
+ └── Lords
+      └── Hero
 
 Supreme Arbiters
-  └── Hero
+ └── Hero
 ```
 
-Одна й та сама картка може бути показана в декількох секціях.
+Одна картка може існувати в декількох UI-секціях.
 
 ---
 
-# Важливе правило для awakening
+# Awakening
 
 Дублювання героя відбувається **тільки на рівні UI**.
 
-Джерелом стану залишається:
+Джерело стану:
 
 ```js
 userHeroes[hero.id]
 ```
 
-Тобто:
+Модель:
 
 ```text
 один hero.id
-       ↓
+      ↓
 один UserHero
-       ↓
+      ↓
 один awakeningLevel
-       ↓
+      ↓
 декілька UI-копій
 ```
 
@@ -600,22 +663,22 @@ Watchguard       → A3
 Supreme Arbiters → A3
 ```
 
-Якщо натиснути на героя в `Watchguard`:
+Натискання:
 
 ```text
 Watchguard       → A4
 Supreme Arbiters → A4
 ```
 
-Логіка backend при цьому не змінюється.
+Backend при цьому не змінюється.
 
-У БД залишається один запис:
+У БД залишається:
 
 ```text
 user_id + hero_id
 ```
 
-за рахунок:
+завдяки:
 
 ```java
 @UniqueConstraint(
@@ -627,7 +690,7 @@ user_id + hero_id
 
 # Lord-фракції
 
-Фракція виду:
+Фракція:
 
 ```text
 Watchguard Lord
@@ -639,7 +702,7 @@ Watchguard Lord
 Watchguard
 ```
 
-Те саме:
+Так само:
 
 ```text
 The North Throne Lord
@@ -649,34 +712,621 @@ Supreme Arbiters Lord
 → Supreme Arbiters
 ```
 
-Герой може бути Lord для однієї фракції та одночасно членом інших фракцій.
+Герой може бути Lord однієї фракції і одночасно членом інших.
 
 ---
 
-# Frontend API правило
+# DEMON SOLDIERS
 
-Axios вже має:
+## Статус
+
+**Модуль Demon Soldiers реалізований.**
+
+Готові:
+
+- Entity
+- Repository
+- DTO
+- Mapper
+- Service
+- Controller
+- Flyway migration
+- seed data
+- фінальний `demons.json`
+
+Demon Soldiers є **окремим каталогом**.
+
+Вони **не є `UserHero`** і не мають прив'язки до користувача.
+
+---
+
+# DemonSoldier Entity
+
+```java
+@Entity
+@Table(
+        name = "demon_soldiers",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_demon_soldier_name",
+                        columnNames = "name"
+                ),
+                @UniqueConstraint(
+                        name = "uk_demon_soldier_image_slug",
+                        columnNames = "image_slug"
+                )
+        }
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class DemonSoldier {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 100)
+    private String name;
+
+    @Column(nullable = false, length = 20)
+    private String rarity;
+
+    @Column(nullable = false, length = 50)
+    private String faction;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int level = 1;
+
+    @Column(
+            name = "image_slug",
+            nullable = false,
+            unique = true,
+            length = 100
+    )
+    private String imageSlug;
+}
+```
+
+---
+
+# DemonSoldier data model
 
 ```text
-baseURL = http://localhost:8080/api
+DemonSoldier
+├── id
+├── name
+├── rarity
+├── faction
+├── level
+└── imageSlug
 ```
 
-Тому frontend НЕ повинен додавати `/api`.
+---
 
-Правильно:
+# Demon Soldier Rarities
+
+У грі для цього каталогу використовуються **тільки 3 rarity**:
+
+```text
+LEGENDARY
+EPIC
+RARE
+```
+
+Візуально:
+
+```text
+LEGENDARY → жовтий
+EPIC      → фіолетовий
+RARE      → синій
+```
+
+**Mythic не використовується.**
+
+---
+
+# Demon Soldier Level
+
+Початковий рівень:
+
+```text
+1
+```
+
+Level належить безпосередньо `DemonSoldier`.
+
+На поточному етапі:
+
+- level-up механіка не реалізована;
+- UserDemonSoldier не існує;
+- рівень не залежить від користувача.
+
+---
+
+# DemonSoldier DTO
+
+```java
+@Data
+@Builder
+public class DemonSoldierResponse {
+
+    private Long id;
+    private String name;
+    private String rarity;
+    private String faction;
+    private int level;
+    private String imageSlug;
+}
+```
+
+---
+
+# DemonSoldierMapper
+
+```java
+@Component
+public class DemonSoldierMapper {
+
+    public DemonSoldierResponse toDto(
+            DemonSoldier soldier
+    ) {
+
+        if (soldier == null) {
+            return null;
+        }
+
+        return DemonSoldierResponse.builder()
+                .id(soldier.getId())
+                .name(soldier.getName())
+                .rarity(soldier.getRarity())
+                .faction(soldier.getFaction())
+                .level(soldier.getLevel())
+                .imageSlug(soldier.getImageSlug())
+                .build();
+    }
+}
+```
+
+---
+
+# DemonSoldierRepository
+
+```java
+public interface DemonSoldierRepository
+        extends JpaRepository<DemonSoldier, Long> {
+
+    boolean existsByName(String name);
+}
+```
+
+---
+
+# DemonSoldierService
+
+```java
+@Service
+@RequiredArgsConstructor
+public class DemonSoldierService {
+
+    private final DemonSoldierRepository demonSoldierRepository;
+    private final DemonSoldierMapper demonSoldierMapper;
+
+    @Transactional(readOnly = true)
+    public List<DemonSoldierResponse> getAllDemonSoldiers() {
+
+        return demonSoldierRepository.findAll()
+                .stream()
+                .map(demonSoldierMapper::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DemonSoldierResponse getDemonSoldierById(
+            Long id
+    ) {
+
+        return demonSoldierRepository.findById(id)
+                .map(demonSoldierMapper::toDto)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Demon Soldier not found with id: " + id
+                        )
+                );
+    }
+}
+```
+
+---
+
+# DemonSoldierController
+
+Backend endpoints:
+
+```http
+GET /api/demon-soldiers
+GET /api/demon-soldiers/{id}
+```
+
+Controller:
+
+```java
+@RestController
+@RequestMapping("/api/demon-soldiers")
+@RequiredArgsConstructor
+public class DemonSoldierController {
+
+    private final DemonSoldierService demonSoldierService;
+
+    @GetMapping
+    public ResponseEntity<List<DemonSoldierResponse>> getAll() {
+
+        return ResponseEntity.ok(
+                demonSoldierService.getAllDemonSoldiers()
+        );
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<DemonSoldierResponse> getById(
+            @PathVariable Long id
+    ) {
+
+        return ResponseEntity.ok(
+                demonSoldierService.getDemonSoldierById(id)
+        );
+    }
+}
+```
+
+Frontend endpoints через Axios:
 
 ```js
-api.get('/heroes')
-api.get(`/user-heroes/${userId}`)
-api.post(`/user-heroes/${userId}/hero/${heroId}`)
-api.delete(`/user-heroes/${userId}/hero/${heroId}`)
+api.get('/demon-soldiers')
+api.get(`/demon-soldiers/${id}`)
 ```
 
-Неправильно:
+---
+
+# Demon Soldiers Database
+
+Таблиця:
+
+```text
+demon_soldiers
+```
+
+Поля:
+
+```text
+id
+name
+rarity
+faction
+level
+image_slug
+```
+
+Constraints:
+
+```text
+name UNIQUE
+image_slug UNIQUE
+```
+
+---
+
+# Demon Soldiers Flyway
+
+Flyway migration створена та виконана.
+
+Migration створює:
+
+```sql
+CREATE TABLE demon_soldiers (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    rarity VARCHAR(20) NOT NULL,
+    faction VARCHAR(50) NOT NULL,
+    level INTEGER NOT NULL DEFAULT 1,
+    image_slug VARCHAR(100) NOT NULL,
+
+    CONSTRAINT uk_demon_soldier_name
+        UNIQUE (name),
+
+    CONSTRAINT uk_demon_soldier_image_slug
+        UNIQUE (image_slug)
+);
+```
+
+Migration також містить seed для **всіх 61 Demon Soldier**.
+
+---
+
+# Demon Soldiers — final data
+
+Усього:
+
+```text
+61 Demon Soldiers
+```
+
+## Frostborne — 8
+
+```text
+Frost Canid
+Frost Guardian
+Frostbourne Scholar
+Frozen Cleric
+Frozen Drifter
+Frozen Raider
+Glacius (Demon Soldier)
+Ice Vermin
+```
+
+## Chaos — 8
+
+```text
+Bloodmend Rats
+Chaos Shaman
+Doomripper
+Emberfire Templar
+Grotesque Fiend
+High-order Abyssal Beholder
+Infernal Cleric
+Slaughter
+```
+
+## Bloodspring — 8
+
+```text
+Baron Salem
+Batwings Banshee
+Blasting Corpse
+Blood Hexer
+Countess Mariath
+Specter Skeleton Archer
+Tormented Banshee
+Twisted Sycophant
+```
+
+## Stonekin — 7
+
+```text
+Boulder Ravager
+Garnet Guard
+Giant Golem
+Golden Guard
+Ruinstone Drifter
+Smasher Guard
+Wasteland Titan (Demon Soldier)
+```
+
+## Neutral — 30
+
+```text
+Adag's Follower
+Axe Slaughterer
+Book Keeper
+Carrion Hound
+Elite Skeleton Archer
+Fallen Reaper
+Fallen Templar
+Ghoul Hound
+Imperial Pharaoh Guard
+Knight of Destruction
+Lightning Guard
+Lizardfly Imago
+Maw (Demon Soldier)
+Murkling Menace
+Necromancer
+Pharaoh's Guard
+Scalekin Champion
+Scalekin Mage
+Scalekin Shaman
+Scalekin Warrior
+Scourge
+Shadowcaster
+Skeleton Guardian
+Small Arachnid
+Soulbone Archer
+Stitched Carrion
+Suicide
+The Fool
+Uncommon Destroyer
+White Tower's Scholar
+```
+
+---
+
+# Final Demon Soldier Rarity Rules
+
+Фінальний JSON використовує:
+
+```text
+LEGENDARY
+EPIC
+RARE
+```
+
+Всі записи повинні використовувати uppercase.
+
+Зокрема:
+
+```text
+Scalekin Mage → RARE
+```
+
+а не:
+
+```text
+Rare
+```
+
+---
+
+# Demon Soldier Image System
+
+Зовнішні image URL **більше не використовуються**.
+
+Початковий JSON мав:
+
+```json
+{
+    "name": "...",
+    "url": "...",
+    "faction": "..."
+}
+```
+
+`url` був видалений.
+
+Фінальна модель використовує:
+
+```text
+imageSlug
+```
+
+Наприклад:
+
+```text
+Frost Canid
+→ frost-canid
+```
+
+```text
+Glacius (Demon Soldier)
+→ glacius-demon-soldier
+```
+
+```text
+High-order Abyssal Beholder
+→ high-order-abyssal-beholder
+```
+
+```text
+Adag's Follower
+→ adags-follower
+```
+
+```text
+Pharaoh's Guard
+→ pharaohs-guard
+```
+
+```text
+White Tower's Scholar
+→ white-towers-scholar
+```
+
+---
+
+# Final `demons.json`
+
+Файл був підготовлений із такими полями:
+
+```json
+{
+    "name": "Frost Canid",
+    "faction": "Frostborne Demon Soldiers",
+    "rarity": "LEGENDARY"
+}
+```
+
+`url` повністю видалений.
+
+Фракції:
+
+```text
+Frostborne Demon Soldiers
+Chaos Demon Soldiers
+Bloodspring Demon Soldiers
+Stonekin Demon Soldiers
+Neutral Demon Soldiers
+```
+
+---
+
+# Demon JSON preprocessing script
+
+Для підготовки JSON використовувався Node.js script:
 
 ```js
-api.get('/api/heroes')
+const fs = require("node:fs/promises");
+
+const FILE = "./demons.json";
+
+async function main() {
+    const data = JSON.parse(
+        await fs.readFile(FILE, "utf8")
+    );
+
+    for (const item of data) {
+
+        if (typeof item.faction === "string") {
+            item.faction = item.faction.replace(/\[\]$/, "");
+        }
+
+        delete item.url;
+
+        item.rarity = "";
+    }
+
+    await fs.writeFile(
+        FILE,
+        JSON.stringify(data, null, 4),
+        "utf8"
+    );
+
+    console.log("✅ Готово! demons.json оновлено.");
+}
+
+main().catch(console.error);
 ```
+
+Після цього rarity були заповнені вручну на основі скріншотів гри.
+
+---
+
+# Current Architecture Rule
+
+Не ламати існуючу модель `UserHero`.
+
+Ключовий ідентифікатор стану героя:
+
+```text
+hero.id
+```
+
+Фракції керують **відображенням**, а не володінням.
+
+```text
+Hero
+├── factions → де показувати
+├── lordFaction → де він Lord
+└── id → який це герой
+
+UserHero
+├── user
+├── hero
+└── awakeningLevel → стан героя користувача
+```
+
+Demon Soldiers зараз є окремим каталогом:
+
+```text
+DemonSoldier
+├── id
+├── name
+├── rarity
+├── faction
+├── level
+└── imageSlug
+```
+
+**Не створювати `UserDemonSoldier`, якщо це окремо не буде визначено в майбутньому ТЗ.**
 
 ---
 
@@ -684,27 +1334,33 @@ api.get('/api/heroes')
 
 ## 1. UserRoster `/api` prefix
 
-Виправлено.
+**Виправлено.**
 
-Axios вже має `/api`, тому frontend використовує тільки endpoint без `/api`.
+Axios вже має:
+
+```text
+/api
+```
+
+Frontend використовує endpoint без `/api`.
 
 ---
 
 ## 2. HeroResponseDto image field
 
-Backend використовує:
+Backend:
 
 ```java
 imageSlug
 ```
 
-Frontend повинен використовувати:
+Frontend:
 
 ```js
 hero.imageSlug
 ```
 
-а не:
+Не використовувати:
 
 ```js
 hero.imageUrl
@@ -722,7 +1378,7 @@ Frontend очікує members endpoints, яких backend поки не реал
 
 ## 4. CORS
 
-Потрібно переконатися, що PATCH присутній у дозволених CORS methods.
+Потрібно переконатися, що `PATCH` присутній у дозволених CORS methods.
 
 ---
 
@@ -736,13 +1392,17 @@ Frontend очікує members endpoints, яких backend поки не реал
 
 ## 6. UserProfileResponse
 
-`UserProfileResponse` наразі не містить `inviteCode`.
+`UserProfileResponse` наразі не містить:
+
+```text
+inviteCode
+```
 
 Потребує окремого виправлення.
 
 ---
 
-# Нове: Share Roster
+# Share Roster
 
 ## Статус
 
@@ -752,15 +1412,15 @@ Frontend очікує members endpoints, яких backend поки не реал
 
 ---
 
-# План Share Roster на майбутнє
+# Share Roster — майбутній план
 
-Публічне посилання має виглядати приблизно так:
+Публічне посилання:
 
 ```text
 /shared/{token}
 ```
 
-а не:
+Не:
 
 ```text
 /shared/{userId}
@@ -768,17 +1428,13 @@ Frontend очікує members endpoints, яких backend поки не реал
 
 щоб не відкривати user ID та не дозволяти простий перебір користувачів.
 
----
-
-## Передбачувана архітектура
-
-Окрема сутність, наприклад:
+Передбачувана сутність:
 
 ```text
 RosterShare
 ```
 
-з даними:
+з:
 
 ```text
 id
@@ -808,23 +1464,23 @@ UI використовує ту саму логіку фракцій та awake
 
 ---
 
-# Принцип Share Roster
+# Share Roster Principle
 
 Share-функція не повинна створювати копії `UserHero`.
 
-Модель має залишатися:
+Модель:
 
 ```text
 User
-  ↓
+ ↓
 UserHero
-  ↓
+ ↓
 Hero
 ```
 
 Share лише дає публічний спосіб прочитати актуальний ростер.
 
-Тому після зміни власником ростера:
+Після зміни власником:
 
 ```text
 Hero A → A3
@@ -838,7 +1494,7 @@ Hero C → видалений
 
 # Share-функція — борг
 
-Після деплою реалізувати:
+Після деплою:
 
 ```text
 Create share link
@@ -853,28 +1509,55 @@ Generate new share link
 
 ---
 
-# Current Architecture Rule
+# Current Project Status
 
-Не ламати існуючу модель `UserHero`.
-
-Ключовий ідентифікатор стану героя:
+Реалізовано:
 
 ```text
-hero.id
+Authentication
+    ↓
+Users
+    ↓
+Heroes
+    ↓
+User Heroes
+    ↓
+UserRoster
+    ↓
+Guild базова логіка
+    ↓
+Demon Soldiers
 ```
 
-Фракції керують **відображенням**, а не володінням.
-
-Тобто:
+### Demon Soldiers
 
 ```text
-Hero
- ├── factions → де показувати
- ├── lordFaction → де він Lord
- └── id → який це герой
-
-UserHero
- ├── user
- ├── hero
- └── awakeningLevel → стан героя користувача
+✅ JSON
+✅ 61 soldiers
+✅ 3 rarities
+✅ factions
+✅ initial level = 1
+✅ imageSlug
+✅ Entity
+✅ Repository
+✅ DTO
+✅ Mapper
+✅ Service
+✅ Controller
+✅ Flyway table
+✅ Flyway seed
 ```
+
+### Поки не реалізовано
+
+```text
+❌ UserDemonSoldier
+❌ Demon Soldier ownership
+❌ Demon Soldier upgrade mechanics
+❌ Share Roster
+❌ Guild members API
+❌ Guild creator fix
+❌ inviteCode у UserProfileResponse
+```
+
+Це є **актуальний baseline контексту проєкту** для подальшої роботи.
