@@ -39,6 +39,20 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage());
     }
 
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<Object> handleValidationException(
+            ValidationException ex
+    ) {
+        log.warn("Validation failed: {}", ex.getMessage());
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                ex.getMessage()
+        );
+    }
+
+
     private ResponseEntity<Object> buildResponse(HttpStatus status, String error, String message) {
         Map<String, Object> body = Map.of(
                 "timestamp", LocalDateTime.now().toString(),

@@ -42,6 +42,8 @@ public class GuildService {
         guild.setCreatedAt(LocalDateTime.now());
 
         Guild savedGuild = guildRepository.save(guild);
+        user.setGuild(savedGuild);
+        userRepository.save(user);
 
 
         return mapToGuildResponse(savedGuild, 0);

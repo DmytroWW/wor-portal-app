@@ -1,13 +1,13 @@
 -- ============================================================
--- GWG ENUM TYPES
+-- GVG ENUM TYPES
 -- ============================================================
 
-CREATE TYPE gwg_map_type AS ENUM (
+CREATE TYPE gvg_map_type AS ENUM (
     'FORT',
     'TOWER'
 );
 
-CREATE TYPE gwg_tile_type AS ENUM (
+CREATE TYPE gvg_tile_type AS ENUM (
     'GROUND',
     'PLATFORM'
 );
@@ -21,15 +21,15 @@ CREATE TYPE attack_direction AS ENUM (
 
 
 -- ============================================================
--- GWG MAPS
+-- GVG MAPS
 -- ============================================================
 
-CREATE TABLE gwg_maps (
+CREATE TABLE gvg_maps (
     id BIGSERIAL PRIMARY KEY,
 
     season_number INTEGER NOT NULL,
 
-    map_type gwg_map_type NOT NULL,
+    map_type gvg_map_type NOT NULL,
 
     name VARCHAR(100) NOT NULL,
 
@@ -41,32 +41,32 @@ CREATE TABLE gwg_maps (
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT chk_gwg_map_season_number
+    CONSTRAINT chk_gvg_map_season_number
         CHECK (season_number > 0),
 
-    CONSTRAINT chk_gwg_map_width
+    CONSTRAINT chk_gvg_map_width
         CHECK (width > 0),
 
-    CONSTRAINT chk_gwg_map_height
+    CONSTRAINT chk_gvg_map_height
         CHECK (height > 0),
 
-    CONSTRAINT uk_gwg_map_season_type
+    CONSTRAINT uk_gvg_map_season_type
         UNIQUE (season_number, map_type)
 );
 
 
 -- Only one active map per map type.
 -- One active FORT and one active TOWER are allowed.
-CREATE UNIQUE INDEX ux_gwg_map_one_active_per_type
-    ON gwg_maps (map_type)
+CREATE UNIQUE INDEX ux_gvg_map_one_active_per_type
+    ON gvg_maps (map_type)
     WHERE is_active = TRUE;
 
 
 -- ============================================================
--- GWG MAP TILES
+-- GVG MAP TILES
 -- ============================================================
 
-CREATE TABLE gwg_map_tiles (
+CREATE TABLE gvg_map_tiles (
     id BIGSERIAL PRIMARY KEY,
 
     map_id BIGINT NOT NULL,
@@ -75,45 +75,45 @@ CREATE TABLE gwg_map_tiles (
 
     y INTEGER NOT NULL,
 
-    tile_type gwg_tile_type NOT NULL,
+    tile_type gvg_tile_type NOT NULL,
 
     -- Direction characteristic of this map tile.
     attack_direction attack_direction,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_gwg_map_tile_map
+    CONSTRAINT fk_gvg_map_tile_map
         FOREIGN KEY (map_id)
-        REFERENCES gwg_maps(id)
+        REFERENCES gvg_maps(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT chk_gwg_map_tile_x
+    CONSTRAINT chk_gvg_map_tile_x
         CHECK (x >= 0),
 
-    CONSTRAINT chk_gwg_map_tile_y
+    CONSTRAINT chk_gvg_map_tile_y
         CHECK (y >= 0),
 
-    CONSTRAINT uk_gwg_map_tile_position
+    CONSTRAINT uk_gvg_map_tile_position
         UNIQUE (map_id, x, y)
 );
 
 
-CREATE INDEX idx_gwg_map_tiles_map_id
-    ON gwg_map_tiles (map_id);
+CREATE INDEX idx_gvg_map_tiles_map_id
+    ON gvg_map_tiles (map_id);
 
 
 -- ============================================================
--- GWG PRESETS
+-- GVG PRESETS
 -- ============================================================
 
-CREATE TABLE gwg_presets (
+CREATE TABLE gvg_presets (
     id BIGSERIAL PRIMARY KEY,
 
     -- Guild that owns this preset.
     guild_id BIGINT NOT NULL,
 
     -- Exact map for which this preset was created.
-    -- Preset must remain bound to this map even after
+    -- The preset remains bound to this map even when
     -- a newer season/map becomes active.
     map_id BIGINT NOT NULL,
 
@@ -131,36 +131,36 @@ CREATE TABLE gwg_presets (
 
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_gwg_preset_guild
+    CONSTRAINT fk_gvg_preset_guild
         FOREIGN KEY (guild_id)
         REFERENCES guilds(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT fk_gwg_preset_map
+    CONSTRAINT fk_gvg_preset_map
         FOREIGN KEY (map_id)
-        REFERENCES gwg_maps(id)
+        REFERENCES gvg_maps(id)
         ON DELETE RESTRICT,
 
-    CONSTRAINT uk_gwg_preset_guild_code
+    CONSTRAINT uk_gvg_preset_guild_code
         UNIQUE (guild_id, preset_code)
 );
 
 
-CREATE INDEX idx_gwg_presets_guild_id
-    ON gwg_presets (guild_id);
+CREATE INDEX idx_gvg_presets_guild_id
+    ON gvg_presets (guild_id);
 
-CREATE INDEX idx_gwg_presets_map_id
-    ON gwg_presets (map_id);
+CREATE INDEX idx_gvg_presets_map_id
+    ON gvg_presets (map_id);
 
-CREATE INDEX idx_gwg_presets_guild_map
-    ON gwg_presets (guild_id, map_id);
+CREATE INDEX idx_gvg_presets_guild_map
+    ON gvg_presets (guild_id, map_id);
 
 
 -- ============================================================
--- GWG PRESET HEROES
+-- GVG PRESET HEROES
 -- ============================================================
 
-CREATE TABLE gwg_preset_heroes (
+CREATE TABLE gvg_preset_heroes (
     id BIGSERIAL PRIMARY KEY,
 
     preset_id BIGINT NOT NULL,
@@ -176,42 +176,42 @@ CREATE TABLE gwg_preset_heroes (
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_gwg_preset_hero_preset
+    CONSTRAINT fk_gvg_preset_hero_preset
         FOREIGN KEY (preset_id)
-        REFERENCES gwg_presets(id)
+        REFERENCES gvg_presets(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT fk_gwg_preset_hero_hero
+    CONSTRAINT fk_gvg_preset_hero_hero
         FOREIGN KEY (hero_id)
         REFERENCES heroes(id)
         ON DELETE RESTRICT,
 
-    CONSTRAINT fk_gwg_preset_hero_tile
+    CONSTRAINT fk_gvg_preset_hero_tile
         FOREIGN KEY (tile_id)
-        REFERENCES gwg_map_tiles(id)
+        REFERENCES gvg_map_tiles(id)
         ON DELETE RESTRICT,
 
     -- The same hero can only appear once in one preset.
-    CONSTRAINT uk_gwg_preset_hero
+    CONSTRAINT uk_gvg_preset_hero
         UNIQUE (preset_id, hero_id)
 );
 
 
-CREATE INDEX idx_gwg_preset_heroes_preset_id
-    ON gwg_preset_heroes (preset_id);
+CREATE INDEX idx_gvg_preset_heroes_preset_id
+    ON gvg_preset_heroes (preset_id);
 
-CREATE INDEX idx_gwg_preset_heroes_hero_id
-    ON gwg_preset_heroes (hero_id);
+CREATE INDEX idx_gvg_preset_heroes_hero_id
+    ON gvg_preset_heroes (hero_id);
 
-CREATE INDEX idx_gwg_preset_heroes_tile_id
-    ON gwg_preset_heroes (tile_id);
+CREATE INDEX idx_gvg_preset_heroes_tile_id
+    ON gvg_preset_heroes (tile_id);
 
 
 -- ============================================================
--- GWG PRESET SOLDIERS
+-- GVG PRESET SOLDIERS
 -- ============================================================
 
-CREATE TABLE gwg_preset_soldiers (
+CREATE TABLE gvg_preset_soldiers (
     id BIGSERIAL PRIMARY KEY,
 
     preset_id BIGINT NOT NULL,
@@ -224,27 +224,27 @@ CREATE TABLE gwg_preset_soldiers (
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT fk_gwg_preset_soldier_preset
+    CONSTRAINT fk_gvg_preset_soldier_preset
         FOREIGN KEY (preset_id)
-        REFERENCES gwg_presets(id)
+        REFERENCES gvg_presets(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT fk_gwg_preset_soldier_soldier
+    CONSTRAINT fk_gvg_preset_soldier_soldier
         FOREIGN KEY (soldier_id)
         REFERENCES demon_soldiers(id)
         ON DELETE RESTRICT,
 
-    CONSTRAINT chk_gwg_preset_soldier_level
+    CONSTRAINT chk_gvg_preset_soldier_level
         CHECK (level BETWEEN 1 AND 10),
 
     -- The same soldier cannot be listed twice in one preset.
-    CONSTRAINT uk_gwg_preset_soldier
+    CONSTRAINT uk_gvg_preset_soldier
         UNIQUE (preset_id, soldier_id)
 );
 
 
-CREATE INDEX idx_gwg_preset_soldiers_preset_id
-    ON gwg_preset_soldiers (preset_id);
+CREATE INDEX idx_gvg_preset_soldiers_preset_id
+    ON gvg_preset_soldiers (preset_id);
 
-CREATE INDEX idx_gwg_preset_soldiers_soldier_id
-    ON gwg_preset_soldiers (soldier_id);
+CREATE INDEX idx_gvg_preset_soldiers_soldier_id
+    ON gvg_preset_soldiers (soldier_id);
