@@ -1,0 +1,1 @@
+ALTER TYPE gvg_tile_type ADD VALUE IF NOT EXISTS 'EMPTY';

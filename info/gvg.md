@@ -1,306 +1,84 @@
----
-
 # GVG — Guild vs Guild Module
 
-## Status
+## 1. Призначення проєкту
 
-**Поточний етап: Entities підготовлені, наступний крок — Repositories.**
+GVG — модуль для зберігання карт і пресетів атак гільдії та пошуку готових кодів атак, які відповідають розстановкам захисників ворога.
 
-Модуль GVG розробляється окремо в пакеті:
+Основна ідея:
+- Гільдія зберігає пресети атак із кодами.
+- Кожен пресет прив'язаний до конкретної карти й сезону.
+- У пресеті зберігаються герої, їхні клітинки та напрямки атак, а також необов'язковий склад солдатів.
+- Додаток порівнює ворожі розстановки зі збереженими пресетами та повертає відповідні коди атак.
+
+Передбачено два режими пошуку:
+
+1. **Масовий пошук:** обробити список із 30 ворожих дефів, знайти відповідні коди атак і позначити дефів, для яких збігів не знайдено.
+2. **Кастомний пошук:** користувач вручну задає одну розстановку захисників і отримує всі коди атак, які їй відповідають.
+
+## 2. Технології
+
+- Java 25
+- Spring Boot 4.1.1
+- Spring Security
+- JWT
+- Spring Data JPA
+- Hibernate
+- PostgreSQL
+- Flyway
+- Lombok
+
+Пакет модуля:
 
 ```text
 com.wor_portal_app_backend.features.gvg
 ```
 
-Використовується наявний backend stack:
+Схема БД має створюватися та змінюватися через Flyway.
+
+Статус застосування міграції, компіляцію та сумісність entity-мапінгів із реальною PostgreSQL-схемою потрібно перевірити окремо.
+
+## 3. Структура пакетів
 
 ```text
-Spring Boot 4.1.1
-Java 25
-Spring Security
-JWT
-Spring Data JPA
-PostgreSQL
-Flyway
-Lombok
+features/gvg/
+├── controller/
+├── dto/
+├── entity/
+├── enums/
+├── mapper/
+├── repository/
+└── service/
 ```
 
-Не змінювати наявні `Hero`, `UserHero`, `Guild` та `DemonSoldier` для реалізації GVG без окремої потреби.
-
----
-
-## Package Structure
-
-```text
-com.wor_portal_app_backend.features.gvg
-├── controller
-├── dto
-├── entity
-├── enums
-├── mapper
-├── repository
-└── service
-```
-
-Пакети використовують префікс `features.gvg`, а не `gvg` безпосередньо в кореневому package.
-
----
-
-## GVG Enums
-
-Створені три ENUM-файли.
+## 4. ENUM-и
 
 ### GvgMapType
 
-```java
-package com.wor_portal_app_backend.features.gvg.enums;
+PostgreSQL ENUM: `gvg_map_type`.
 
-public enum GvgMapType {
-    FORT,
-    TOWER
-}
-```
+Значення:
+- `FORT`
+- `TOWER`
 
 ### GvgTileType
 
-```java
-package com.wor_portal_app_backend.features.gvg.enums;
+PostgreSQL ENUM: `gvg_tile_type`.
 
-public enum GvgTileType {
-    GROUND,
-    PLATFORM
-}
-```
+Значення:
+- `GROUND`
+- `PLATFORM`
 
 ### AttackDirection
 
-```java
-package com.wor_portal_app_backend.features.gvg.enums;
+PostgreSQL ENUM: `attack_direction`.
 
-public enum AttackDirection {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT
-}
-```
+Значення:
+- `UP`
+- `DOWN`
+- `LEFT`
+- `RIGHT`
 
----
-
-## GVG Database Schema
-
-Погоджена SQL-схема містить шість типів/таблиць: три PostgreSQL ENUM-типа та п'ять таблиць GVG.
-
-### PostgreSQL ENUM types
-
-```text
-gvg_map_type
-    FORT
-    TOWER
-
-gvg_tile_type
-    GROUND
-    PLATFORM
-
-attack_direction
-    UP
-    DOWN
-    LEFT
-    RIGHT
-```
-
-### Tables
-
-```text
-gvg_maps
-gvg_map_tiles
-gvg_presets
-gvg_preset_heroes
-gvg_preset_soldiers
-```
-
-Схема має бути створена через Flyway. Статус виконання міграції потрібно перевірити окремо.
-
----
-
-## GvgMap
-
-Table:
-
-```text
-gvg_maps
-```
-
-Fields:
-
-```text
-id
-season_number
-map_type
-name
-width
-height
-is_active
-created_at
-```
-
-Rules:
-
-- `map_type` використовує PostgreSQL ENUM `gvg_map_type`.
-- `(season_number, map_type)` є унікальним.
-- Для кожного `map_type` може бути не більше однієї активної карти.
-- Одночасно можуть бути активні одна FORT і одна TOWER.
-- `width` та `height` мають бути більшими за нуль.
-- `season_number` має бути більшим за нуль.
-- Карта не має `@OneToMany`-колекції tiles; tiles завантажуються окремим репозиторієм.
-
----
-
-## GvgMapTile
-
-Table:
-
-```text
-gvg_map_tiles
-```
-
-Fields:
-
-```text
-id
-map_id
-x
-y
-tile_type
-attack_direction
-created_at
-```
-
-Rules:
-
-- Клітинка належить конкретній карті через `map_id`.
-- `(map_id, x, y)` є унікальним.
-- `x` та `y` починаються з нуля.
-- `tile_type` використовує PostgreSQL ENUM `gvg_tile_type`.
-- `attack_direction` використовує PostgreSQL ENUM `attack_direction` і може бути `NULL`.
-- `created_at` заповнюється через `@PrePersist`.
-- Для зв'язку з картою використовується `@ManyToOne(fetch = FetchType.LAZY)`.
-
----
-
-## GvgPreset
-
-Table:
-
-```text
-gvg_presets
-```
-
-Fields:
-
-```text
-id
-guild_id
-map_id
-preset_code
-name
-description
-created_at
-updated_at
-```
-
-Rules:
-
-- Пресет належить конкретній гільдії.
-- Пресет прив'язаний до конкретної карти за `map_id`.
-- Пресет не перемикається автоматично на нову активну карту після зміни сезону.
-- `preset_code` унікальний тільки в межах гільдії: `(guild_id, preset_code)`.
-- `name` — назва пресета.
-- `description` — текстова нотатка про атаку.
-- `created_at` встановлюється при створенні.
-- `updated_at` оновлюється при зміні сутності через JPA.
-- Зв'язки використовують наявний `Guild` і новий `GvgMap`.
-
----
-
-## GvgPresetHero
-
-Table:
-
-```text
-gvg_preset_heroes
-```
-
-Fields:
-
-```text
-id
-preset_id
-hero_id
-tile_id
-attack_direction
-created_at
-```
-
-Rules:
-
-- Герой посилається на наявну сутність `Hero`.
-- Один герой може бути доданий до пресета лише один раз: `(preset_id, hero_id)`.
-- `tile_id` nullable, щоб підтримувати незавершені пресети.
-- `attack_direction` використовує PostgreSQL ENUM `attack_direction` і є обов'язковим.
-- `created_at` заповнюється через `@PrePersist`.
-- Не створювати дублікати сутності `Hero` або змінювати `UserHero` для GVG.
-
-### Hero tile placement rules
-
-```text
-DEFENDER   → GROUND
-FIGHTER    → GROUND
-MARKSMAN   → PLATFORM
-MAGE       → PLATFORM
-HEALER     → PLATFORM
-TACTICIAN  → GROUND або PLATFORM
-```
-
-Клас героя не зберігається окремо в GVG. Він береться з `Hero.className`.
-
-Сервіс має перевіряти, що `tile` належить тій самій карті, що й пресет. Звичайного FK для цього недостатньо.
-
----
-
-## GvgPresetSoldier
-
-Table:
-
-```text
-gvg_preset_soldiers
-```
-
-Fields:
-
-```text
-id
-preset_id
-soldier_id
-level
-created_at
-```
-
-Rules:
-
-- `soldier_id` посилається на наявну сутність `DemonSoldier`.
-- Один солдат може бути доданий до пресета лише один раз: `(preset_id, soldier_id)`.
-- `level` у GVG-пресеті має бути в діапазоні `1–10`.
-- Рівень у пресеті не змінює `DemonSoldier.level`.
-- `created_at` заповнюється через `@PrePersist`.
-- Не створювати `UserDemonSoldier`.
-- Таблиця не має `tile_id`: розташування солдатів не моделюється в поточній схемі.
-
----
-
-## Hibernate PostgreSQL ENUM Mapping
-
-Для полів, які відповідають власним PostgreSQL ENUM-типам, використовувати:
+Для Java-полів, які відповідають власним PostgreSQL ENUM, використовується Hibernate-мапінг:
 
 ```java
 @Enumerated(EnumType.STRING)
@@ -314,181 +92,330 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 ```
 
-Застосовується до:
+## 5. Схема сутностей
+
+### 5.1. GvgMap — `gvg_maps`
+
+Опис карти GVG.
+
+Поля:
+- `id`
+- `season_number`
+- `map_type`
+- `name`
+- `width`
+- `height`
+- `is_active`
+- `created_at`
+
+Правила:
+- `season_number > 0`.
+- `width > 0`, `height > 0`.
+- `map_type` використовує PostgreSQL ENUM `gvg_map_type`.
+- Унікальність `(season_number, map_type)`.
+- Для кожного типу карти може бути не більше однієї активної карти.
+- Одночасно можуть бути активними одна `FORT` і одна `TOWER`.
+- Колекція tiles у `GvgMap` не зберігається; клітинки завантажуються окремим репозиторієм.
+
+### 5.2. GvgMapTile — `gvg_map_tiles`
+
+Одна клітинка карти.
+
+Поля:
+- `id`
+- `map_id`
+- `x`
+- `y`
+- `tile_type`
+- `attack_direction` — nullable
+- `created_at`
+
+Правила:
+- Клітинка належить конкретній карті.
+- Унікальність `(map_id, x, y)`.
+- Координати починаються з нуля.
+- `tile_type` використовує PostgreSQL ENUM `gvg_tile_type`.
+- `attack_direction` використовує PostgreSQL ENUM `attack_direction` і може бути `NULL`.
+- Зв'язок із картою: `@ManyToOne(fetch = FetchType.LAZY)`.
+- `created_at` заповнюється через `@PrePersist`.
+
+### 5.3. GvgPreset — `gvg_presets`
+
+Збережений варіант атаки гільдії — основна одиниця каталогу кодів атак.
+
+Поля:
+- `id`
+- `guild_id`
+- `map_id`
+- `preset_code`
+- `name`
+- `description`
+- `created_at`
+- `updated_at`
+
+Правила:
+- Пресет належить конкретній гільдії.
+- Пресет прив'язаний до конкретної карти й сезону через `map_id`.
+- Унікальність `(guild_id, preset_code)`.
+- Пресет не перемикається автоматично на карту нового сезону.
+- `name` — назва пресета.
+- `description` — текстова нотатка про атаку.
+- `created_at` встановлюється під час створення.
+- `updated_at` оновлюється під час зміни сутності через JPA.
+- Використовуються наявні `Guild` і нова сутність `GvgMap`.
+
+### 5.4. GvgPresetHero — `gvg_preset_heroes`
+
+Герой у пресеті атаки.
+
+Поля:
+- `id`
+- `preset_id`
+- `hero_id`
+- `tile_id` — nullable
+- `attack_direction`
+- `created_at`
+
+Правила:
+- `hero_id` посилається на наявну сутність `Hero`.
+- Унікальність `(preset_id, hero_id)`.
+- `tile_id` nullable, щоб підтримувати незавершені пресети.
+- `attack_direction` обов'язковий.
+- `created_at` заповнюється через `@PrePersist`.
+- Сервіс має перевіряти, що клітинка належить карті пресета.
+- Клас героя береться з `Hero.className` і окремо в GVG не зберігається.
+- Не створювати дублікати `Hero` або змінювати `UserHero` для реалізації GVG.
+
+Сумісність класу героя з типом клітинки:
+
+| Клас героя | Дозволена клітинка |
+|---|---|
+| `DEFENDER` | `GROUND` |
+| `FIGHTER` | `GROUND` |
+| `MARKSMAN` | `PLATFORM` |
+| `MAGE` | `PLATFORM` |
+| `HEALER` | `PLATFORM` |
+| `TACTICIAN` | `GROUND` або `PLATFORM` |
+
+### 5.5. GvgPresetSoldier — `gvg_preset_soldiers`
+
+Необов'язковий солдат у пресеті атаки.
+
+Поля:
+- `id`
+- `preset_id`
+- `soldier_id`
+- `level`
+- `created_at`
+
+Правила:
+- `soldier_id` посилається на наявну сутність `DemonSoldier`.
+- Унікальність `(preset_id, soldier_id)`.
+- `level` у GVG-пресеті має бути в діапазоні `1–10`.
+- Рівень у пресеті не змінює `DemonSoldier.level`.
+- `created_at` заповнюється через `@PrePersist`.
+- Таблиця не має `tile_id`: розташування солдатів зараз не моделюється.
+- Не створювати `UserDemonSoldier`.
+
+## 6. Правила GVG Defense Search
+
+Мета пошуку — знайти всі збережені коди атак, які точно відповідають розстановці захисників ворога.
+
+### Умови точного збігу
+
+1. **Та сама карта й сезон.** Пресет повинен посилатися на ту саму карту, що й розстановка, яку шукаємо.
+2. **Ті самі герої.** Порівнюються ідентифікатори `Hero.id`.
+3. **Ті самі клітинки.** Кожен герой має бути розташований на тих самих координатах.
+4. **Ті самі напрямки атак.** Напрямок кожного героя має збігатися.
+5. **Порядок героїв не має значення.** Перестановка елементів у списку не повинна змінювати результат.
+
+Пресет з іншим героєм, іншими координатами або іншим напрямком атаки не є точним збігом.
+
+### Сигнатура розстановки
+
+Для порівняння можна формувати канонічну сигнатуру в пам'яті.
+
+Один запис сигнатури:
 
 ```text
-GvgMap.mapType
-GvgMapTile.tileType
-GvgMapTile.attackDirection
-GvgPresetHero.attackDirection
+heroId | x | y | attackDirection
 ```
 
-У `GvgPreset` та `GvgPresetSoldier` PostgreSQL ENUM-мапінг не потрібен.
+Перед порівнянням записи нормалізуються та сортуються за стабільними полями. Після цього сигнатури однакових розстановок збігатимуться незалежно від початкового порядку героїв.
 
-Після змін необхідно перевірити компіляцію та інтеграцію з реальною PostgreSQL-схемою.
+Окрема таблиця для сигнатур на першому етапі не потрібна.
 
----
+Солдатів не включаємо в сигнатуру розстановки захисників, доки окремо не визначимо, що вони впливають на ідентифікацію дефу.
 
-## GVG Entity Implementation Status
+## 7. Режими пошуку
 
-Підготовлені п'ять сутностей:
+### 7.1. Масовий пошук — 30 дефів
 
-```text
-✅ GvgMap
-✅ GvgMapTile
-✅ GvgPreset
-✅ GvgPresetHero
-✅ GvgPresetSoldier
-```
+1. Користувач відкриває карту GVG.
+2. Передає список із 30 розстановок захисників ворога.
+3. Backend перевіряє коректність розстановок.
+4. Завантажує пресети потрібної гільдії та карти.
+5. Порівнює розстановки з пресетами.
+6. Повертає для кожного дефу всі знайдені коди атак.
+7. Якщо збігів немає, деф позначається як такий, для якого код не знайдено.
 
-Підготовлені три ENUM-и:
+### 7.2. Кастомний пошук — один деф
 
-```text
-✅ GvgMapType
-✅ GvgTileType
-✅ AttackDirection
-```
+1. Користувач вручну розставляє героїв на карті.
+2. Задає напрямки атак.
+3. Запускає пошук.
+4. Backend порівнює розстановку з пресетами.
+5. Повертає всі коди точних збігів.
 
-Для сутностей додано або заплановано:
+### Принцип продуктивності
 
-```text
-✅ JPA mappings
-✅ Table names
-✅ Column names
-✅ Foreign-key relationships
-✅ Unique constraints
-✅ PostgreSQL ENUM mappings
-✅ Automatic created_at timestamps
-✅ Preset updated_at lifecycle
-```
+Не виконувати окремий запит до БД для кожного з 30 дефів.
 
-Потрібно ще перевірити, що всі виправлення збережені у фактичних файлах та проєкт успішно компілюється.
+Краще завантажити пресети та їхніх героїв пакетно, побудувати сигнатури в пам'яті й виконати порівняння в Java.
 
----
+## 8. Безпека та ізоляція гільдій
 
-## GVG Repositories — Next Step
+- Поточний користувач визначається через Spring Security та JWT.
+- `guildId` не можна вважати довіреним значенням, отриманим від frontend.
+- `GvgGuildContextService` має визначати гільдію поточного користувача.
+- Усі операції читання, оновлення та видалення пресетів обмежуються гільдією поточного користувача.
+- Пошук кодів має використовувати тільки пресети дозволеної гільдії та потрібної карти.
+- Не можна повертати коди атак інших гільдій.
 
-Створити пакет:
+## 9. Досягнуті цілі
 
-```text
-com.wor_portal_app_backend.features.gvg.repository
-```
+За поточним описом проєкту підготовлено:
 
-Додати:
+- ENUM-и `GvgMapType`, `GvgTileType`, `AttackDirection`.
+- П'ять entity-класів:
+    - `GvgMap`
+    - `GvgMapTile`
+    - `GvgPreset`
+    - `GvgPresetHero`
+    - `GvgPresetSoldier`
+- Логічну схему п'яти таблиць і трьох PostgreSQL ENUM-типів.
+- Правила зв'язків, унікальності та timestamps.
+- Правила сумісності класів героїв із клітинками.
+- Концепцію пресетів, прив'язаних до карти й сезону.
+- Бізнес-правила точного пошуку кодів атак.
 
-```text
-GvgMapRepository
-GvgMapTileRepository
-GvgPresetRepository
-GvgPresetHeroRepository
-GvgPresetSoldierRepository
-```
+### Що ще потрібно перевірити
 
-Основні запити:
+- Чи всі зміни збережені у фактичних entity-файлах.
+- Чи відповідають типи ID і назви полів реальному коду.
+- Чи створена й застосована Flyway-міграція.
+- Чи працюють PostgreSQL ENUM-мапінги.
+- Чи проєкт успішно компілюється та запускається з PostgreSQL.
 
-- Знайти карту за сезоном і типом.
-- Знайти активну карту за типом.
-- Отримати клітинки карти у порядку `y`, потім `x`.
-- Отримати пресети поточної гільдії.
-- Знайти пресет за `id` та `guildId`.
-- Отримати героїв і солдатів конкретного пресета.
+## 10. Майбутні задачі
 
----
+### Етап 1 — Repositories
 
-## GVG Services — Planned
+Створити й перевірити:
 
-```text
-GvgMapService
-GvgPresetService
-GvgMapValidationService
-GvgGuildContextService
-```
+- `GvgMapRepository`
+- `GvgMapTileRepository`
+- `GvgPresetRepository`
+- `GvgPresetHeroRepository`
+- `GvgPresetSoldierRepository`
 
-### GvgGuildContextService
+Потрібні операції:
+- знайти карту за сезоном і типом;
+- знайти активну карту за типом;
+- отримати клітинки карти у порядку `y`, потім `x`;
+- отримати пресети поточної гільдії;
+- знайти пресет за `id` та `guildId`;
+- отримати героїв і солдатів конкретного пресета;
+- перевіряти дублікати героїв і солдатів.
 
-Визначає поточного користувача з SecurityContext/JWT і знаходить його гільдію.
+Для Defense Search додатково потрібен запит, який пакетно завантажує героїв пресетів конкретної гільдії на конкретній карті.
 
-**Frontend не передає `guildId` як довірене значення.**
+### Етап 2 — Guild context та валідація
 
-Усі операції з пресетами повинні бути обмежені гільдією поточного користувача.
+Створити:
+- `GvgGuildContextService`
+- `GvgMapValidationService`
 
-### GvgMapValidationService
-
-Перевіряє:
-
-- існування карти, клітинки, героя та солдата;
+Перевіряти:
+- існування карти, клітинок, героїв і солдатів;
 - належність клітинки карті пресета;
 - сумісність класу героя з типом клітинки;
 - напрямок атаки;
 - рівень солдата `1–10`;
-- дублікати героїв і солдатів.
+- дублікати героїв і солдатів;
+- коректність вхідних розстановок для пошуку.
 
-### GvgPresetService
+### Етап 3 — Preset CRUD
 
-Плановані операції:
+Реалізувати `GvgPresetService`:
 
-```text
-Create preset
-Get presets for current guild
-Get preset by ID
-Update preset
-Delete preset
-```
+- створення пресета;
+- отримання пресетів поточної гільдії;
+- отримання пресета за ID;
+- оновлення пресета;
+- видалення пресета.
 
-Для пошуку та зміни пресета обов'язково перевіряти належність поточній гільдії.
+Кожна операція має перевіряти належність пресета поточній гільдії.
+
+### Етап 4 — GVG Defense Search
+
+Реалізувати:
+
+- `GvgDefenseSignatureService` — нормалізація розстановки;
+- `GvgDefenseMatchingService` — точне порівняння;
+- `GvgDefenseSearchService` — пошук кодів атак;
+- `GvgDefenseSearchController` — HTTP API;
+- DTO запиту та відповіді.
+
+Режими:
+1. Масовий пошук 30 дефів.
+2. Кастомний пошук одного дефу.
+
+Для кожного дефу повертати всі коди точних збігів. Якщо збігів немає, повертати порожній список.
+
+### Етап 5 — Map API та адміністрування
+
+Реалізувати:
+- `GvgMapService`
+- `GvgMapController`
+- `GvgAdminMapController`
+
+Endpoints:
+- `GET /api/gvg/maps/{id}`
+- `GET /api/gvg/maps/active/{mapType}`
+- `GET /api/gvg/presets`
+- `GET /api/gvg/presets/{id}`
+- `POST /api/gvg/presets`
+- `PUT /api/gvg/presets/{id}`
+- `DELETE /api/gvg/presets/{id}`
+
+Адміністративне керування картами й клітинками реалізувати окремо з перевіркою прав доступу.
+
+### Етап 6 — Тестування
+
+- Перевірити застосування Flyway-міграції.
+- Скомпілювати проєкт.
+- Перевірити інтеграцію з реальною PostgreSQL.
+- Перевірити точні збіги та невідповідності героїв.
+- Перевірити інші координати й напрямки атаки.
+- Перевірити ізоляцію за картою, сезоном і гільдією.
+- Перевірити масовий пошук 30 дефів.
+- Перевірити кастомний пошук одного дефу.
+
+## 11. Поза поточним scope
+
+- `UserDemonSoldier` та моделювання володіння солдатами.
+- Автоматичне перемикання пресетів на нові сезонні карти.
+- Зберігання класу героя окремо в GVG.
+- Розташування солдатів по клітинках.
+- Окрема таблиця пошукових сигнатур до вимірювання потреби в оптимізації.
 
 ---
 
-## GVG Controllers — Planned
+## Підсумок
 
-```text
-GvgMapController
-GvgPresetController
-GvgAdminMapController
-```
+GVG має стати каталогом перевірених атак гільдії.
 
-Плановані endpoints:
+Користувач задає одну або 30 розстановок ворожих дефів, а система знаходить усі пресети з точним збігом героїв, клітинок, напрямків атак, карти й сезону та повертає відповідні коди атак.
 
-```http
-GET    /api/gvg/maps/{id}
-GET    /api/gvg/maps/active/{mapType}
-
-GET    /api/gvg/presets
-GET    /api/gvg/presets/{id}
-POST   /api/gvg/presets
-PUT    /api/gvg/presets/{id}
-DELETE /api/gvg/presets/{id}
-```
-
-Адміністративне керування картами й клітинками буде реалізоване окремо із перевіркою прав доступу.
-
----
-
-## GVG Current Scope
-
-У поточному scope:
-
-```text
-Map catalog
-Map tiles
-Season-bound presets
-Hero placement
-Hero attack direction
-Optional preset soldiers
-Preset soldier level
-Guild-scoped access control
-```
-
-Поза поточним scope:
-
-```text
-UserDemonSoldier
-Demon Soldier ownership
-Automatic switching of preset maps
-Storing hero placement class in GVG
-Tile placement for preset soldiers
-```
-
-### Current next action
-
-**Продовжити з п'яти GVG Repository-інтерфейсів**, використовуючи пакет `com.wor_portal_app_backend.features.gvg.repository` і вже створені сутності.
+Пресети — це база знань про готові атаки, а Defense Search — механізм, який знаходить потрібні рішення для конкретних розстановок ворога.

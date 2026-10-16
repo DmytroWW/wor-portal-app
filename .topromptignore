@@ -1,0 +1,40 @@
+# Node / React (найголовніше — виключити це!)
+**/node_modules/
+**/build/
+**/dist/
+**/.next/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Java / Spring Boot
+**/target/
+**/build/
+**/out/
+**/.gradle/
+*.class
+*.jar
+
+# IDE та система
+**/.idea/
+**/.git/
+**/.vscode/
+*.iml
+*.log
+
+
+# Бінарники, архіви, логи та карти коду
+*.jar
+*.war
+*.zip
+*.tar.gz
+*.class
+*.exe
+*.log
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
+*.pdf
+*.map

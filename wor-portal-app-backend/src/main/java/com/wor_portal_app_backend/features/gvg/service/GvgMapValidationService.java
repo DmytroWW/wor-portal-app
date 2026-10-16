@@ -81,6 +81,11 @@ public class GvgMapValidationService {
                     "Tile type is not defined"
             );
         }
+        if (tile.getTileType() == GvgTileType.EMPTY) {
+            throw new ValidationException(
+                    "Cannot place a hero on an EMPTY tile"
+            );
+        }
 
         String heroClass = hero.getClassName();
 

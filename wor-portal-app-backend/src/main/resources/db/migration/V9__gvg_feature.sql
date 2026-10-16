@@ -1,3 +1,4 @@
+
 -- ============================================================
 -- GVG ENUM TYPES
 -- ============================================================
@@ -27,6 +28,8 @@ CREATE TYPE attack_direction AS ENUM (
 CREATE TABLE gvg_maps (
     id BIGSERIAL PRIMARY KEY,
 
+    -- Logical GVG rotation number.
+    -- Each rotation contains exactly one FORT and one TOWER map.
     season_number INTEGER NOT NULL,
 
     map_type gvg_map_type NOT NULL,
@@ -50,13 +53,14 @@ CREATE TABLE gvg_maps (
     CONSTRAINT chk_gvg_map_height
         CHECK (height > 0),
 
+    -- One FORT and one TOWER per rotation.
     CONSTRAINT uk_gvg_map_season_type
         UNIQUE (season_number, map_type)
 );
 
 
 -- Only one active map per map type.
--- One active FORT and one active TOWER are allowed.
+-- This allows exactly one active FORT and one active TOWER.
 CREATE UNIQUE INDEX ux_gvg_map_one_active_per_type
     ON gvg_maps (map_type)
     WHERE is_active = TRUE;
@@ -78,6 +82,7 @@ CREATE TABLE gvg_map_tiles (
     tile_type gvg_tile_type NOT NULL,
 
     -- Direction characteristic of this map tile.
+    -- NULL means that the tile has no predefined direction.
     attack_direction attack_direction,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -93,6 +98,7 @@ CREATE TABLE gvg_map_tiles (
     CONSTRAINT chk_gvg_map_tile_y
         CHECK (y >= 0),
 
+    -- A map cannot have two tiles at the same coordinates.
     CONSTRAINT uk_gvg_map_tile_position
         UNIQUE (map_id, x, y)
 );
@@ -114,7 +120,7 @@ CREATE TABLE gvg_presets (
 
     -- Exact map for which this preset was created.
     -- The preset remains bound to this map even when
-    -- a newer season/map becomes active.
+    -- a newer rotation/map becomes active.
     map_id BIGINT NOT NULL,
 
     -- Short attack/preset identifier.
@@ -141,6 +147,8 @@ CREATE TABLE gvg_presets (
         REFERENCES gvg_maps(id)
         ON DELETE RESTRICT,
 
+    -- The same preset code cannot be used twice
+    -- inside the same guild.
     CONSTRAINT uk_gvg_preset_guild_code
         UNIQUE (guild_id, preset_code)
 );
@@ -171,7 +179,8 @@ CREATE TABLE gvg_preset_heroes (
     -- NULL is allowed for an unfinished/draft preset.
     tile_id BIGINT,
 
-    -- Direction of this specific hero in this preset.
+    -- Exact direction selected for this hero in this preset.
+    -- Every placed hero has exactly one direction.
     attack_direction attack_direction NOT NULL,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -193,7 +202,13 @@ CREATE TABLE gvg_preset_heroes (
 
     -- The same hero can only appear once in one preset.
     CONSTRAINT uk_gvg_preset_hero
-        UNIQUE (preset_id, hero_id)
+        UNIQUE (preset_id, hero_id),
+
+    -- One tile can contain at most one hero in one preset.
+    -- PostgreSQL allows multiple NULL values in a UNIQUE constraint,
+    -- so multiple unfinished heroes without a tile are still allowed.
+    CONSTRAINT uk_gvg_preset_hero_tile
+        UNIQUE (preset_id, tile_id)
 );
 
 
