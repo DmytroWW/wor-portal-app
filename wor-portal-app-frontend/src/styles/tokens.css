@@ -1,0 +1,246 @@
+/**
+ * ============================================================================
+ * DESIGN TOKENS
+ * ============================================================================
+ *
+ *  Цей файл фіксує дизайн-токени, зчитані з макету "Aeternum Companion"
+ *  (темна тема, фентезійний геймерський портал).
+ *
+ *
+ *
+ *  Токени продубльовані у двох форматах:
+ *    1) CSS custom properties (--token-name)  — для майбутнього :root/@theme
+ *    2) Коментарі з відповідними Tailwind-класами/значеннями — для швидкої
+ *       звірки з класами, які вже використовуються у верстці макету.
+ *
+ *  Структура розділів:
+ *    1. Фон / поверхні (Backgrounds & Surfaces)
+ *    2. Акцентні кольори (Accents)
+ *    3. Статусні кольори (States)
+ *    4. Текст (Text / Foreground)
+ *    5. Радіуси (Radius)
+ *    6. Тіні (Shadows)
+ *    7. Типографіка (Typography)
+ *    8. Відступи / сітка (Spacing & Layout)
+ *    9. Мапа застосування токенів до блоків макету (reference map)
+ * ============================================================================
+ */
+
+:root {
+  /* ==========================================================================
+   * 1. ФОН / ПОВЕРХНІ (Backgrounds & Surfaces)
+   * ==========================================================================
+   * Базовий фон сторінки темніший і холодніший за стандартний slate-950
+   * Tailwind — це кастомний "deep space" відтінок з макету.
+   */
+
+  /* Кастомний базовий фон сторінки (body / html), макет: суцільне тло. */
+  --color-bg-base: #0b0f1a;              /* кастомний, темніший за slate-950 */
+
+  /* Tailwind slate-950 — фон найглибших контейнерів / футера / header. */
+  --color-bg-surface-950: #020617;       /* slate-950 */
+
+  /* Tailwind slate-900 — фон карток (новини, гайди), бокових панелей. */
+  --color-bg-surface-900: #0f172a;       /* slate-900 */
+
+  /* Tailwind slate-800 — фон елементів другого рівня: inputs, вкладені
+   * картки, роздільники, поля форм у блоці "Інпути та елементи". */
+  --color-bg-surface-800: #1e293b;       /* slate-800 */
+
+  /* Tailwind slate-700 — бордери поверх surface-800/900 (неактивні рамки). */
+  --color-bg-surface-700: #334155;       /* slate-700 */
+
+  /* ==========================================================================
+   * 2. АКЦЕНТНІ КОЛЬОРИ (Accents)
+   * ==========================================================================
+   * Amber — головний бренд-акцент (CTA "Почати подорож", активні вкладки,
+   * логотип, hover-рамки, прогрес-бар slider thumb).
+   * Purple — вторинний акцент (бейдж "ОНОВЛЕННЯ", вторинні кнопки,
+   * декоративні рамки, аватар-рамка користувача).
+   */
+
+  /* --- Amber (бренд / основна дія) --- */
+  --color-accent-amber-400: #fbbf24;     /* amber-400: hover/світліший стан */
+  --color-accent-amber-500: #f59e0b;     /* amber-500: основний CTA, активний таб */
+  --color-accent-amber-600: #d97706;     /* amber-600: active/pressed стан CTA */
+  --color-accent-amber-900: #78350f;     /* amber-900: база для тіней shadow-amber-900/40 */
+
+  /* --- Purple (другорядний акцент) --- */
+  --color-accent-purple-400: #c084fc;    /* purple-400: hover вторинних елементів */
+  --color-accent-purple-500: #a855f7;    /* purple-500: вторинна кнопка, бейджі */
+  --color-accent-purple-600: #9333ea;    /* purple-600: active стан вторинної кнопки */
+  --color-accent-purple-900: #581c87;    /* purple-900: база для тіней shadow-purple-900/40 */
+
+  /* ==========================================================================
+   * 3. СТАТУСНІ КОЛЬОРИ (States)
+   * ==========================================================================
+   * Emerald  — успіх / онлайн-статус серверів / кнопка "Підтримати".
+   * Red      — небезпека / помилка (сповіщення, валідація форм).
+   * Sky/Blue — інформаційні повідомлення / посилання.
+   */
+
+  /* --- Emerald (успіх / online) --- */
+  --color-state-success-400: #34d399;    /* emerald-400 */
+  --color-state-success-500: #10b981;    /* emerald-500: кнопка "Успішно", індикатор "Онлайн" */
+  --color-state-success-600: #059669;    /* emerald-600: hover/active */
+  --color-state-success-900: #064e3b;    /* emerald-900: база для shadow-emerald-900/40 */
+
+  /* --- Red (небезпека / помилка, без окремої UI-кнопки) --- */
+  --color-state-danger-400: #f87171;     /* red-400 */
+  --color-state-danger-500: #ef4444;     /* red-500: помилки валідації, критичні сповіщення */
+  --color-state-danger-600: #dc2626;     /* red-600: hover/active */
+  --color-state-danger-900: #7f1d1d;     /* red-900: база для shadow-red-900/40 */
+
+  /* --- Sky / Blue (інформація, без окремої UI-кнопки) --- */
+  --color-state-info-400: #38bdf8;       /* sky-400 */
+  --color-state-info-500: #0ea5e9;       /* sky-500: інформаційні бейджі/повідомлення */
+  --color-state-info-600: #0284c7;       /* sky-600: hover/active */
+  --color-state-info-blue-500: #3b82f6;  /* blue-500: альтернативний інфо-відтінок (посилання) */
+  --color-state-info-blue-600: #2563eb;  /* blue-600: hover посилань */
+  --color-state-info-900: #0c4a6e;       /* sky-900: база для shadow-sky-900/40 */
+
+  /* ==========================================================================
+   * 4. ТЕКСТ / FOREGROUND
+   * ==========================================================================
+   */
+  --color-text-primary: #f8fafc;         /* slate-50: заголовки, основний текст */
+  --color-text-secondary: #cbd5e1;       /* slate-300: підзаголовки, описи карток */
+  --color-text-muted: #64748b;           /* slate-500: мета-інформація, таймстемпи */
+  --color-text-disabled: #475569;        /* slate-600: вимкнені елементи (Disabled стан) */
+  --color-text-on-accent: #0b0f1a;       /* текст на amber/жовтих кнопках */
+  --color-text-link: var(--color-state-info-blue-500);
+
+  /* ==========================================================================
+   * 5. РАДІУСИ (Border Radius)
+   * ==========================================================================
+   */
+  --radius-sm: 0.25rem;   /* 4px  — rounded,    дрібні бейджі */
+  --radius-md: 0.375rem;  /* 6px  — rounded-md, інпути-компакт */
+  --radius-lg: 0.5rem;    /* 8px  — rounded-lg, кнопки, поля форм */
+  --radius-xl: 0.75rem;   /* 12px — rounded-xl, картки новин/гайдів */
+  --radius-2xl: 1rem;     /* 16px — rounded-2xl, великі панелі, hero-банер, аватар-блок */
+  --radius-full: 9999px;  /* rounded-full, аватари, точки статусу серверів */
+
+  /* ==========================================================================
+   * 6. ТІНІ (Shadows)
+   * ==========================================================================
+   * Патерн макету: shadow-lg + кольорова тінь відповідного акценту з
+   * прозорістю 40% на базі відтінку *-900 (напр. shadow-amber-900/40).
+   */
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+
+  --shadow-amber-900-40: 0 10px 15px -3px rgb(120 53 15 / 0.4), 0 4px 6px -4px rgb(120 53 15 / 0.4);
+  --shadow-purple-900-40: 0 10px 15px -3px rgb(88 28 135 / 0.4), 0 4px 6px -4px rgb(88 28 135 / 0.4);
+  --shadow-emerald-900-40: 0 10px 15px -3px rgb(6 78 59 / 0.4), 0 4px 6px -4px rgb(6 78 59 / 0.4);
+  --shadow-red-900-40: 0 10px 15px -3px rgb(127 29 29 / 0.4), 0 4px 6px -4px rgb(127 29 29 / 0.4);
+  --shadow-sky-900-40: 0 10px 15px -3px rgb(12 74 110 / 0.4), 0 4px 6px -4px rgb(12 74 110 / 0.4);
+  --shadow-slate-950-40: 0 10px 15px -3px rgb(2 6 23 / 0.4), 0 4px 6px -4px rgb(2 6 23 / 0.4);
+
+  /* ==========================================================================
+   * 7. ТИПОГРАФІКА
+   * ==========================================================================
+   */
+  --font-family-base: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-family-display: "Cinzel", "Playfair Display", serif; /* логотип / фентезійні заголовки */
+
+  --font-size-xs: 0.75rem;    /* 12px — мета-дані, лейбли бейджів */
+  --font-size-sm: 0.875rem;   /* 14px — текст кнопок, описи */
+  --font-size-base: 1rem;     /* 16px — основний текст */
+  --font-size-lg: 1.125rem;   /* 18px — підзаголовки карток */
+  --font-size-xl: 1.5rem;     /* 24px — заголовки секцій */
+  --font-size-3xl: 2.25rem;   /* 36px — hero-заголовок "AETERNUM COMPANION" */
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --letter-spacing-wide: 0.05em;   /* навігація, лейбли "ГОЛОВНА", "НОВИНИ" */
+  --letter-spacing-wider: 0.1em;   /* бейджі "ОНОВЛЕННЯ", "ПОДІЯ" */
+
+  /* ==========================================================================
+   * 8. ВІДСТУПИ / СІТКА (Spacing & Layout)
+   * ==========================================================================
+   */
+  --space-xs: 0.5rem;   /* 8px */
+  --space-sm: 0.75rem;  /* 12px */
+  --space-md: 1rem;     /* 16px */
+  --space-lg: 1.5rem;   /* 24px — gap між картками */
+  --space-xl: 2rem;     /* 32px — padding секцій */
+  --space-2xl: 3rem;    /* 48px — відступи між блоками сторінки */
+
+  --container-max-width: 1440px;
+  --sidebar-width: 320px; /* права колонка з профілем/статусами/підтримкою */
+}
+
+/**
+ * ============================================================================
+ *  9. МАПА ЗАСТОСУВАННЯ ТОКЕНІВ (Reference Map)
+ * ============================================================================
+ *  Нижче — не активний CSS, а довідкова таблиця відповідності елементів
+ *  макету та токенів/Tailwind-класів. Корисно при верстці компонентів.
+ *
+ *  ── Header / Навігація ────────────────────────────────────────────────────
+ *    bg:        --color-bg-surface-950 (slate-950), border-bottom slate-800
+ *    active-tab:  --color-accent-amber-500, underline amber-400
+ *    search input: bg slate-900, border slate-800, rounded-lg
+ *    "Вхід" кнопка: bg amber-500, text slate-950, rounded-lg,
+ *                    shadow-lg shadow-amber-900/40
+ *
+ *  ── Hero-банер ────────────────────────────────────────────────────────────
+ *    bg: background-image + gradient overlay to --color-bg-base
+ *    container: rounded-2xl
+ *    badge "ЛАСКАВО ПРОСИМО В": bg purple-500/20, text purple-400, rounded-full
+ *    H1: --font-family-display, text-primary, font-weight-bold
+ *    CTA "Почати подорож": bg amber-500, rounded-lg, shadow-amber-900/40
+ *    CTA secondary "Дивитись гайди": border slate-700, bg transparent, rounded-lg
+ *
+ *  ── Картки новин / гайдів ─────────────────────────────────────────────────
+ *    bg: --color-bg-surface-900 (slate-900), border slate-800, rounded-xl
+ *    hover: border amber-500/50, shadow-lg shadow-slate-950/40
+ *    badge "ОНОВЛЕННЯ": bg purple-600, rounded-full, text-xs, tracking-wider
+ *    badge "ПОДІЯ": bg emerald-600, rounded-full
+ *    badge "НОВИНИ": bg sky-600, rounded-full
+ *    тег категорії (напр. "АСАСИН", "РЕЙДИ"): bg slate-800, rounded-md
+ *
+ *  ── Бічна панель (Sidebar) ────────────────────────────────────────────────
+ *    картка профілю: bg slate-900, border slate-800, rounded-2xl
+ *    аватар: rounded-full, border-2 amber-500
+ *    online-dot: bg emerald-500, rounded-full
+ *    XP progress bar: track slate-800 rounded-full, fill amber-500 rounded-full
+ *    "ПІДТРИМАТИ" кнопка: bg emerald-500/600, rounded-lg, shadow-emerald-900/40
+ *    статус серверів: dot emerald-500 ("Онлайн"), текст text-secondary
+ *
+ *  ── Секція "Kнопки" (UI kit) ──────────────────────────────────────────────
+ *    Основна:     bg amber-500,  text slate-950, rounded-lg
+ *    Вторинна:    bg purple-500, text white,     rounded-lg
+ *    Успішно:     bg emerald-500, text white,    rounded-lg
+ *    (кнопки "Небезпечно", "Інформація" та "Попередження" прибрані з UI kit;
+ *     відповідні кольори red/sky залишені лише як допоміжні
+ *     статусні токени для інших сценаріїв — див. розділ 3 вище)
+ *    Розміри: sm -> rounded-md, md -> rounded-lg, lg -> rounded-xl
+ *
+ *  ── Hover-ефекти ──────────────────────────────────────────────────────────
+ *    normal:   bg slate-800, border slate-700
+ *    hover:    border amber-500, text amber-400
+ *    active:   bg amber-500/20, border amber-500
+ *    disabled: bg slate-800/50, text slate-600, opacity-50
+ *
+ *  ── Рамки та панелі ───────────────────────────────────────────────────────
+ *    проста рамка: border slate-700, rounded-lg
+ *    декоративна рамка: border amber-500/60, rounded-xl, inner glow amber-500/10
+ *    панель із заголовком: bg slate-900, border slate-800, rounded-xl
+ *
+ *  ── Інпути та елементи форм ───────────────────────────────────────────────
+ *    text input / select: bg slate-800, border slate-700, rounded-lg,
+ *                          focus:border amber-500
+ *    checkbox active: bg amber-500, border amber-500
+ *    radio active: border amber-500, dot amber-500
+ *    range slider: track slate-800 rounded-full, fill amber-500,
+ *                  thumb amber-400 rounded-full shadow-amber-900/40
+ *
+ *  ── Футер ─────────────────────────────────────────────────────────────────
+ *    bg: --color-bg-surface-950, border-top slate-800
+ *    text: text-muted, hover text-primary
+ * ============================================================================
+ */
