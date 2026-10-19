@@ -1,1 +1,36 @@
+@config "../tailwind.config.js";
 @import "tailwindcss";
+
+@layer utilities {
+  .card {
+    @apply bg-surface-raised border border-surface-border rounded-xl shadow-surface;
+  }
+
+  .input-field {
+    @apply w-full bg-surface-sunken border border-surface-border text-foreground-primary rounded-lg px-3.5 py-2.5 outline-none transition-colors;
+  }
+
+  .input-field:focus {
+    @apply border-brand-accent shadow-brand-accent;
+  }
+
+  .field-label {
+    @apply block text-sm font-medium text-foreground-secondary mb-1.5;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply bg-brand-accent text-foreground-onAccent hover:bg-brand-accent-hover active:bg-brand-accent-active shadow-brand-accent;
+  }
+
+  .alert {
+    @apply p-3 rounded-lg text-sm mb-4;
+  }
+
+  .alert-danger {
+    @apply bg-brand-danger-muted text-brand-danger-hover border border-brand-danger;
+  }
+}
