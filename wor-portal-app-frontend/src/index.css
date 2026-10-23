@@ -1,36 +1,347 @@
-@config "../tailwind.config.js";
 @import "tailwindcss";
 
+/* ============================================================================
+   WOR PORTAL — DESIGN SYSTEM (Tailwind v4, CSS-first)
+   Семантичні токени з макету "Aeternum Companion".
+   ========================================================================== */
+
+@theme {
+  /* Поверхні */
+  --color-surface-base: #0b0f1a;
+  --color-surface-raised: #0f172a;
+  --color-surface-sunken: #1e293b;
+  --color-surface-overlay: #020617;
+  --color-surface-border: #334155;
+
+  /* Бренд — основний акцент (amber) */
+  --color-brand-accent: #f59e0b;
+  --color-brand-accent-hover: #fbbf24;
+  --color-brand-accent-active: #d97706;
+  --color-brand-accent-muted: #78350f;
+
+  /* Бренд — вторинний акцент (purple) */
+  --color-brand-secondary: #a855f7;
+  --color-brand-secondary-hover: #c084fc;
+  --color-brand-secondary-active: #9333ea;
+  --color-brand-secondary-muted: #581c87;
+
+  /* Статуси */
+  --color-brand-success: #10b981;
+  --color-brand-success-hover: #34d399;
+  --color-brand-success-active: #059669;
+  --color-brand-success-muted: #064e3b;
+
+  --color-brand-danger: #ef4444;
+  --color-brand-danger-hover: #f87171;
+  --color-brand-danger-active: #dc2626;
+  --color-brand-danger-muted: #7f1d1d;
+
+  --color-brand-info: #0ea5e9;
+  --color-brand-info-hover: #38bdf8;
+  --color-brand-info-active: #0284c7;
+  --color-brand-info-muted: #0c4a6e;
+  --color-brand-info-link: #3b82f6;
+  --color-brand-info-linkHover: #2563eb;
+
+  /* Текст */
+  --color-foreground-primary: #f8fafc;
+  --color-foreground-secondary: #cbd5e1;
+  --color-foreground-muted: #64748b;
+  --color-foreground-disabled: #475569;
+  --color-foreground-onAccent: #0b0f1a;
+
+  /* Типографіка */
+  --font-base: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Cinzel", "Playfair Display", serif;
+
+  /* Тіні (кольорові, на базі *-muted) */
+  --shadow-brand-accent: 0 10px 15px -3px rgb(120 53 15 / 0.4), 0 4px 6px -4px rgb(120 53 15 / 0.4);
+  --shadow-brand-secondary: 0 10px 15px -3px rgb(88 28 135 / 0.4), 0 4px 6px -4px rgb(88 28 135 / 0.4);
+  --shadow-brand-success: 0 10px 15px -3px rgb(6 78 59 / 0.4), 0 4px 6px -4px rgb(6 78 59 / 0.4);
+  --shadow-brand-danger: 0 10px 15px -3px rgb(127 29 29 / 0.4), 0 4px 6px -4px rgb(127 29 29 / 0.4);
+  --shadow-brand-info: 0 10px 15px -3px rgb(12 74 110 / 0.4), 0 4px 6px -4px rgb(12 74 110 / 0.4);
+  --shadow-surface: 0 10px 15px -3px rgb(2 6 23 / 0.4), 0 4px 6px -4px rgb(2 6 23 / 0.4);
+}
+
+/* ============================================================================
+   БАЗОВІ СТИЛІ
+   ========================================================================== */
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-surface-base);
+  color: var(--color-foreground-primary);
+  font-family: var(--font-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(245 158 11 / 0.35);
+  color: #f8fafc;
+}
+
+/* Тонкий темний скролбар */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(245 158 11 / 0.55);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================================================
+   УНІФІКОВАНІ КОМПОНЕНТНІ УТИЛІТИ
+   ========================================================================== */
+
 @layer utilities {
+  /* --- Картка ---------------------------------------------------------- */
   .card {
-    @apply bg-surface-raised border border-surface-border rounded-xl shadow-surface;
+    @apply rounded-xl border border-surface-border bg-surface-raised;
+    box-shadow: var(--shadow-surface);
   }
 
+  .card-sunken {
+    @apply rounded-lg border border-surface-border bg-surface-sunken/40;
+  }
+
+  /* --- Поля форм ------------------------------------------------------- */
   .input-field {
-    @apply w-full bg-surface-sunken border border-surface-border text-foreground-primary rounded-lg px-3.5 py-2.5 outline-none transition-colors;
+    @apply w-full rounded-lg border border-surface-border bg-surface-sunken px-3.5 py-2.5 text-sm text-foreground-primary outline-none transition-colors placeholder:text-foreground-muted/70;
   }
 
   .input-field:focus {
-    @apply border-brand-accent shadow-brand-accent;
+    @apply border-brand-accent;
+    box-shadow: 0 0 0 3px rgb(245 158 11 / 0.12);
   }
 
   .field-label {
-    @apply block text-sm font-medium text-foreground-secondary mb-1.5;
+    @apply mb-1.5 block text-sm font-medium text-foreground-secondary;
   }
 
+  /* --- Кнопки ----------------------------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center font-medium rounded-lg px-4 py-2.5 transition-colors cursor-pointer;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-200 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply bg-brand-accent text-foreground-onAccent hover:bg-brand-accent-hover active:bg-brand-accent-active shadow-brand-accent;
+    @apply bg-brand-accent text-foreground-onAccent hover:-translate-y-px hover:bg-brand-accent-hover active:translate-y-0 active:bg-brand-accent-active;
   }
 
+  .btn-secondary {
+    @apply bg-brand-secondary text-foreground-primary hover:-translate-y-px hover:bg-brand-secondary-hover active:translate-y-0 active:bg-brand-secondary-active;
+  }
+
+  .btn-success {
+    @apply bg-brand-success text-foreground-primary hover:-translate-y-px hover:bg-brand-success-hover active:translate-y-0 active:bg-brand-success-active;
+  }
+
+  .btn-danger {
+    @apply bg-brand-danger text-foreground-primary hover:-translate-y-px hover:bg-brand-danger-hover active:translate-y-0 active:bg-brand-danger-active;
+  }
+
+  .btn-outline {
+    @apply border border-surface-border bg-transparent text-foreground-secondary hover:-translate-y-px hover:border-brand-accent/60 hover:text-brand-accent-hover active:translate-y-0;
+  }
+
+  .btn-ghost {
+    @apply text-foreground-muted hover:bg-surface-sunken/60 hover:text-foreground-primary;
+  }
+
+  .btn-sm {
+    @apply rounded-md px-3 py-1.5 text-xs;
+  }
+
+  .btn-icon {
+    @apply h-9 w-9 p-0;
+  }
+
+  /* --- Бейджі / чипи ---------------------------------------------------- */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider;
+  }
+
+  .chip-amber {
+    @apply border-brand-accent/40 bg-brand-accent/10 text-brand-accent-hover;
+  }
+
+  .chip-purple {
+    @apply border-brand-secondary/40 bg-brand-secondary/10 text-brand-secondary-hover;
+  }
+
+  .chip-sky {
+    @apply border-brand-info/40 bg-brand-info/10 text-brand-info-hover;
+  }
+
+  .chip-danger {
+    @apply border-brand-danger/40 bg-brand-danger/10 text-brand-danger-hover;
+  }
+
+  .chip-success {
+    @apply border-brand-success/40 bg-brand-success/10 text-brand-success-hover;
+  }
+
+  .chip-neutral {
+    @apply border-surface-border bg-surface-sunken/60 text-foreground-muted;
+  }
+
+  /* --- Статусні повідомлення -------------------------------------------- */
   .alert {
-    @apply p-3 rounded-lg text-sm mb-4;
+    @apply mb-4 flex items-start gap-2.5 rounded-lg border p-3 text-sm;
   }
 
   .alert-danger {
-    @apply bg-brand-danger-muted text-brand-danger-hover border border-brand-danger;
+    @apply border-brand-danger/40 bg-brand-danger/10 text-brand-danger-hover;
   }
+
+  .alert-success {
+    @apply border-brand-success/40 bg-brand-success/10 text-brand-success-hover;
+  }
+
+  .alert-info {
+    @apply border-brand-info/40 bg-brand-info/10 text-brand-info-hover;
+  }
+
+  /* --- Типографічні прикраси -------------------------------------------- */
+  .gold-text {
+    @apply bg-gradient-to-r from-brand-accent-hover via-brand-accent to-brand-accent-active bg-clip-text text-transparent;
+  }
+
+  .section-title {
+    @apply font-display text-lg font-bold tracking-wider text-foreground-primary;
+  }
+
+  /* Орнаментальний роздільник: лінія — ромб — лінія */
+  .divider-deco {
+    @apply flex items-center gap-3;
+  }
+
+  .divider-deco::before,
+  .divider-deco::after {
+    content: "";
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(245 158 11 / 0.35),
+      rgb(168 85 247 / 0.25),
+      transparent
+    );
+  }
+
+  /* Шумова текстура поверх фото */
+  .bg-noise {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  }
+
+  /* Шестикутник GvG-мапи */
+  .hex-clip {
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  }
+
+  /* Скелетон завантаження */
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-surface-sunken/70;
+  }
+}
+
+/* ============================================================================
+   АНІМАЦІЇ
+   ========================================================================== */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes ping-dot {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.animate-enter {
+  animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-pop {
+  animation: pop-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-glow {
+  animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float-slow 6s ease-in-out infinite;
+}
+
+.live-dot {
+  position: relative;
+}
+
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: inherit;
+  animation: ping-dot 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
