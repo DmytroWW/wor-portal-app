@@ -13,6 +13,14 @@ const RARITY_RING = {
   Epic: 'ring-purple-400',
   Legendary: 'ring-amber-400',
 };
+const getRarityRing = (rarity) => {
+  const value = String(rarity ?? '').trim().toLowerCase();
+
+  const normalized =
+    value.charAt(0).toUpperCase() + value.slice(1);
+
+  return RARITY_RING[normalized] || 'ring-gray-600';
+};
 
 const SoldierImage = ({ soldier, className = '', fallbackClassName = '' }) => {
   const fallback = soldier?.name?.trim()?.charAt(0)?.toUpperCase() || 'S';
