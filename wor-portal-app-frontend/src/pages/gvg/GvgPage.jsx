@@ -13,14 +13,6 @@ const RARITY_RING = {
   Epic: 'ring-purple-400',
   Legendary: 'ring-amber-400',
 };
-const getRarityRing = (rarity) => {
-  const value = String(rarity ?? '').trim().toLowerCase();
-
-  const normalized =
-    value.charAt(0).toUpperCase() + value.slice(1);
-
-  return RARITY_RING[normalized] || 'ring-gray-600';
-};
 
 const SoldierImage = ({ soldier, className = '', fallbackClassName = '' }) => {
   const fallback = soldier?.name?.trim()?.charAt(0)?.toUpperCase() || 'S';
@@ -54,6 +46,110 @@ const MAP_DIMENSIONS = {
   FORT: { width: 1920, height: 1080 },
   TOWER: { width: 1920, height: 1080 },
 };
+
+// Окремі контрольні точки адаптивного калібрування для кожної мапи.
+// Для ширин між контрольними точками параметри плавно інтерполюються.
+const RESPONSIVE_GRID_CALIBRATION = {
+  TOWER: [
+    { width: 320, offsetX: 1, offsetY: -29, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 332, offsetX: 2, offsetY: -29, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 344, offsetX: 4, offsetY: -29, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 350, offsetX: 5, offsetY: -28, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 358, offsetX: 6, offsetY: -28, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 365, offsetX: 7, offsetY: -28, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 370, offsetX: 8, offsetY: -28, scale: 0.97, widthPct: 73, heightPct: 95 },
+    { width: 380, offsetX: 5, offsetY: -33, scale: 0.94, widthPct: 76, heightPct: 100 },
+    { width: 400, offsetX: 4, offsetY: -33, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 432, offsetX: 7, offsetY: -33, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 466, offsetX: 11, offsetY: -33, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 494, offsetX: 13, offsetY: -33, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 522, offsetX: 18, offsetY: -34, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 558, offsetX: 22, offsetY: -34, scale: 0.92, widthPct: 78, heightPct: 100 },
+    { width: 592, offsetX: 25, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 636, offsetX: 33, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 674, offsetX: 36, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 724, offsetX: 42, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 782, offsetX: 47, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 856, offsetX: 54, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 914, offsetX: 63, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 960, offsetX: 70, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 1022, offsetX: 74, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 1030, offsetX: 40, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 1076, offsetX: 45, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 1142, offsetX: 51, offsetY: -30, scale: 0.92, widthPct: 77, heightPct: 100 },
+    { width: 1190, offsetX: 60, offsetY: -30, scale: 0.92, widthPct: 76, heightPct: 100 },
+    { width: 1264, offsetX: 69, offsetY: -30, scale: 0.92, widthPct: 76, heightPct: 100 },
+    { width: 1745, offsetX: 72, offsetY: -30, scale: 0.92, widthPct: 78, heightPct: 100 },
+  ],
+  FORT: [
+    { width: 382, offsetX: 2, offsetY: -37, scale: 0.948, widthPct: 78, heightPct: 105 },
+    { width: 425, offsetX: 3, offsetY: -39, scale: 0.93, widthPct: 80, heightPct: 105 },
+    { width: 495, offsetX: 10, offsetY: -39, scale: 0.93, widthPct: 80, heightPct: 105 },
+    { width: 554, offsetX: 16, offsetY: -41, scale: 0.93, widthPct: 80, heightPct: 105 },
+    { width: 586, offsetX: 23, offsetY: -42, scale: 0.93, widthPct: 79, heightPct: 105 },
+    { width: 666, offsetX: 29, offsetY: -47, scale: 0.93, widthPct: 79, heightPct: 107 },
+    { width: 749, offsetX: 38, offsetY: -46, scale: 0.93, widthPct: 79, heightPct: 105 },
+    { width: 1023, offsetX: 56, offsetY: -48, scale: 0.93, widthPct: 79, heightPct: 105 },
+    { width: 1050, offsetX: 35, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1085, offsetX: 40, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1110, offsetX: 45, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1150, offsetX: 51, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1250, offsetX: 59, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1314, offsetX: 67, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+    { width: 1745, offsetX: 72, offsetY: -48, scale: 0.93, widthPct: 78, heightPct: 105 },
+  ],
+};
+
+const interpolateGridCalibration = (viewportWidth, mapType) => {
+  const points = RESPONSIVE_GRID_CALIBRATION[mapType] || RESPONSIVE_GRID_CALIBRATION.TOWER;
+  const width = Number(viewportWidth) || 1280;
+
+  if (width <= points[0].width) {
+    const { offsetX, offsetY, scale, widthPct, heightPct } = points[0];
+    return { offsetX, offsetY, scale, widthPct, heightPct };
+  }
+
+  const last = points[points.length - 1];
+  if (width >= last.width) {
+    const { offsetX, offsetY, scale, widthPct, heightPct } = last;
+    return { offsetX, offsetY, scale, widthPct, heightPct };
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const right = points[index];
+    const left = points[index - 1];
+
+    if (width <= right.width) {
+      const ratio = (width - left.width) / (right.width - left.width);
+      const interpolate = (field) => left[field] + (right[field] - left[field]) * ratio;
+
+      return {
+        offsetX: Math.round(interpolate('offsetX')),
+        offsetY: Math.round(interpolate('offsetY')),
+        scale: Number(interpolate('scale').toFixed(3)),
+        widthPct: Math.round(interpolate('widthPct')),
+        heightPct: Math.round(interpolate('heightPct')),
+      };
+    }
+  }
+
+  const { offsetX, offsetY, scale, widthPct, heightPct } = last;
+  return { offsetX, offsetY, scale, widthPct, heightPct };
+};
+
+const RESPONSIVE_TYPOGRAPHY_CSS = `
+  .gvg-page { --gvg-font-scale: 1; }
+  .gvg-page [class~="text-[8px]"] { font-size: calc(8px * var(--gvg-font-scale)) !important; }
+  .gvg-page [class~="text-[9px]"] { font-size: calc(9px * var(--gvg-font-scale)) !important; }
+  .gvg-page [class~="text-[10px]"] { font-size: calc(10px * var(--gvg-font-scale)) !important; }
+  .gvg-page [class~="text-[11px]"] { font-size: calc(11px * var(--gvg-font-scale)) !important; }
+  .gvg-page [class~="text-xs"] { font-size: calc(0.75rem * var(--gvg-font-scale)) !important; }
+  .gvg-page [class~="text-sm"] { font-size: calc(0.875rem * var(--gvg-font-scale)) !important; }
+  @media (max-width: 1280px) { .gvg-page { --gvg-font-scale: 0.96; } }
+  @media (max-width: 1024px) { .gvg-page { --gvg-font-scale: 0.92; } }
+  @media (max-width: 768px) { .gvg-page { --gvg-font-scale: 0.88; } }
+  @media (max-width: 480px) { .gvg-page { --gvg-font-scale: 0.84; } }
+`;
 
 // Напрямки, кути повороту стрілки за годинниковою стрілкою та її позиція
 // на краю клітинки (сама іконка героя при цьому ніколи не обертається).
@@ -118,7 +214,6 @@ export default function GvgPage() {
   const [attackCode, setAttackCode] = useState('');
   const [attackName, setAttackName] = useState('');
   const [description, setDescription] = useState('');
-  const [searchCode, setSearchCode] = useState('');
 
   // Гвг солдати, призначені пресету атаки.
   const [demonSoldiers, setDemonSoldiers] = useState([]);
@@ -138,43 +233,14 @@ export default function GvgPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const [calibration, setCalibration] = useState({
-    FORT: {
-      offsetX: 86,
-      offsetY: -38,
-      scale: 1.0,
-      widthPct: 74,
-      heightPct: 100,
-    },
-    TOWER: {
-      offsetX: 75,
-      offsetY: -30,
-      scale: 0.92,
-      widthPct: 76,
-      heightPct: 100,
-    },
-  });
-
-  const currentCalib = calibration[mapType] || {
-    offsetX: 0,
-    offsetY: 0,
-    scale: 1,
-    widthPct: 100,
-    heightPct: 100,
-  };
-
-  const updateCalib = (field, value) => {
-    setCalibration((prev) => ({
-      ...prev,
-      [mapType]: {
-        ...prev[mapType],
-        [field]: value,
-      },
-    }));
-  };
-
+  // Ширина вікна визначає автоматичні параметри сітки для поточного типу мапи.
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1280
+  );
+
+  const currentCalib = useMemo(
+    () => interpolateGridCalibration(viewportWidth, mapType),
+    [viewportWidth, mapType]
   );
 
   useEffect(() => {
@@ -443,7 +509,6 @@ export default function GvgPage() {
     setAttackCode('');
     setAttackName('');
     setDescription('');
-    setSearchCode('');
     setPresetSoldiers([]);
     setSelectedDemonSoldierId('');
     setDemonSoldierQuantity(1);
@@ -597,26 +662,6 @@ export default function GvgPage() {
     }
   };
 
-  const findPresetByCode = () => {
-    const normalized = searchCode.trim().toLowerCase();
-
-    if (!normalized) {
-      setError('Введи код оборони.');
-      return;
-    }
-
-    const found = presets.find(
-      (preset) => preset.presetCode?.toLowerCase() === normalized
-    );
-
-    if (!found) {
-      setError('Атаку не знайдено.');
-      return;
-    }
-
-    openPreset(found.id);
-  };
-
   const placedHeroes = useMemo(
     () =>
       Object.values(heroPlacements)
@@ -705,28 +750,11 @@ export default function GvgPage() {
     });
   };
 
-  const copyConfigToClipboard = async () => {
-    const configStr =
-      `${mapType}: { width: ${viewportWidth}px, ` +
-      `offsetX: ${currentCalib.offsetX}, ` +
-      `offsetY: ${currentCalib.offsetY}, ` +
-      `scale: ${currentCalib.scale}, ` +
-      `widthPct: ${currentCalib.widthPct}, ` +
-      `heightPct: ${currentCalib.heightPct} }`;
 
-    try {
-      await navigator.clipboard.writeText(configStr);
-      setNotice(
-        `Налаштування для ${mapType} (${viewportWidth}px) скопійовано!`
-      );
-    } catch {
-      setError('Не вдалося скопіювати налаштування.');
-    }
-  };
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-3 pt-1 md:px-0">
+      <div className="gvg-page mx-auto max-w-7xl px-3 pt-1 md:px-0">
         <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 text-center text-sm text-foreground-secondary shadow-surface">
           Завантаження GvG мапи…
         </div>
@@ -737,112 +765,17 @@ export default function GvgPage() {
   const currentDim = MAP_DIMENSIONS[mapType] || MAP_DIMENSIONS.FORT;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-3 px-3 pt-1 text-foreground-primary md:px-0">
+    <div className="gvg-page mx-auto max-w-7xl space-y-2 px-3 pt-1 text-foreground-primary md:px-0">
+      <style>{RESPONSIVE_TYPOGRAPHY_CSS}</style>
       {!map ? (
         <div className="rounded-2xl border border-dashed border-surface-border bg-surface-raised p-6 text-center text-sm text-foreground-secondary">
           Для цього типу зараз немає активної GvG мапи.
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-surface">
-          <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
             {/* Мапа */}
-            <section className="relative flex flex-col justify-center border-b border-surface-border bg-surface-base p-3 pb-4 pt-14 lg:border-b-0 lg:border-r">
-              {/* Калібрування */}
-              <div className="absolute right-3 top-14 z-40 w-52 space-y-2 rounded-xl border border-brand-accent/30 bg-surface-overlay/95 p-3 text-[10px] text-foreground-secondary shadow-surface backdrop-blur">
-                <div className="flex items-center justify-between border-b border-surface-border pb-2">
-                  <span className="font-bold uppercase tracking-wider text-brand-accent">
-                    Підгонка ({mapType})
-                  </span>
-                  <span className="font-mono text-foreground-muted">
-                    {viewportWidth}px
-                  </span>
-                </div>
-
-                {[
-                  {
-                    field: 'offsetX',
-                    label: 'Зсув X',
-                    min: -150,
-                    max: 150,
-                    step: 1,
-                    value: currentCalib.offsetX,
-                    suffix: 'px',
-                  },
-                  {
-                    field: 'offsetY',
-                    label: 'Зсув Y',
-                    min: -150,
-                    max: 150,
-                    step: 1,
-                    value: currentCalib.offsetY,
-                    suffix: 'px',
-                  },
-                  {
-                    field: 'scale',
-                    label: 'Масштаб',
-                    min: 0.5,
-                    max: 2,
-                    step: 0.01,
-                    value: currentCalib.scale,
-                    suffix: 'x',
-                  },
-                  {
-                    field: 'widthPct',
-                    label: 'Ширина сітки',
-                    min: 50,
-                    max: 150,
-                    step: 1,
-                    value: currentCalib.widthPct,
-                    suffix: '%',
-                  },
-                  {
-                    field: 'heightPct',
-                    label: 'Висота сітки',
-                    min: 50,
-                    max: 150,
-                    step: 1,
-                    value: currentCalib.heightPct,
-                    suffix: '%',
-                  },
-                ].map((control) => (
-                  <div key={control.field}>
-                    <div className="mb-1 flex justify-between gap-2">
-                      <label htmlFor={`calib-${control.field}`}>
-                        {control.label}
-                      </label>
-                      <span className="font-mono text-brand-accent">
-                        {control.value}
-                        {control.suffix}
-                      </span>
-                    </div>
-
-                    <input
-                      id={`calib-${control.field}`}
-                      type="range"
-                      min={control.min}
-                      max={control.max}
-                      step={control.step}
-                      value={control.value}
-                      onChange={(event) =>
-                        updateCalib(
-                          control.field,
-                          Number(event.target.value)
-                        )
-                      }
-                      className="w-full cursor-pointer accent-brand-accent"
-                    />
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={copyConfigToClipboard}
-                  className={`${buttonPrimaryClass} w-full`}
-                >
-                  Скопіювати показники
-                </button>
-              </div>
-
+            <section className="relative flex min-w-0 flex-col justify-center border-b border-surface-border bg-surface-base p-2 pb-2 pt-12 lg:col-start-1 lg:row-start-1 lg:border-b-0 lg:border-r">
               {/* Заголовок мапи */}
               <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 bg-gradient-to-b from-surface-raised/95 to-transparent p-3">
                 <div>
@@ -861,7 +794,7 @@ export default function GvgPage() {
 
               {/* Ігрове поле */}
               <div
-                className="relative mx-auto my-auto flex w-full max-w-[1000px] items-center justify-center overflow-hidden rounded-xl border border-surface-border bg-surface-overlay shadow-surface"
+                className="gvg-map-canvas relative isolate mx-auto my-0 block w-full min-w-0 max-w-[1000px] overflow-hidden rounded-xl border border-surface-border bg-surface-overlay shadow-surface"
                 style={{
                   aspectRatio: `${currentDim.width} / ${currentDim.height}`,
                 }}
@@ -873,11 +806,12 @@ export default function GvgPage() {
                       : '/images/maps/tower-bg.png'
                   }
                   alt={map.name}
-                  className="pointer-events-none h-full w-full select-none object-contain"
+                  draggable="false"
+                  className="pointer-events-none absolute inset-0 block h-full w-full select-none object-contain"
                 />
 
                 <div
-                  className="pointer-events-none absolute inset-8 flex items-center justify-center transition-transform duration-75"
+                  className="pointer-events-none absolute inset-8 flex min-w-0 items-center justify-center transition-transform duration-75"
                   style={{
                     transform:
                       `translate(${currentCalib.offsetX}px, ${currentCalib.offsetY}px) ` +
@@ -1033,440 +967,9 @@ export default function GvgPage() {
               </p>
             </section>
 
-            {/* Бічна панель керування */}
-            <aside className="flex min-w-0 flex-col gap-3 bg-surface-raised p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-3">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
-                  Керування розстановкою
-                </h2>
-
-                <div className="flex items-center gap-1">
-                  {MAP_TYPES.map((type) => {
-                    const isActive = mapType === type.value;
-
-                    return (
-                      <button
-                        key={type.value}
-                        type="button"
-                        onClick={() => setMapType(type.value)}
-                        aria-pressed={isActive}
-                        className={`rounded-lg border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
-                          isActive
-                            ? 'border-brand-accent bg-brand-accent text-foreground-onAccent'
-                            : 'border-surface-border bg-surface-sunken text-foreground-secondary hover:border-brand-accent/50 hover:text-foreground-primary'
-                        }`}
-                      >
-                        {type.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {error && (
-                <div
-                  role="alert"
-                  className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 p-2.5 text-xs text-brand-danger-hover"
-                >
-                  {error}
-                </div>
-              )}
-
-              {notice && (
-                <div
-                  role="status"
-                  className="rounded-lg border border-brand-success/30 bg-brand-success/10 p-2.5 text-xs text-brand-success-hover"
-                >
-                  {notice}
-                </div>
-              )}
-
-              {/* Форма пресету */}
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label
-                    htmlFor="attack-code"
-                    className="mb-1 block font-medium text-foreground-secondary"
-                  >
-                    Код пресету
-                  </label>
-                  <input
-                    id="attack-code"
-                    type="text"
-                    value={attackCode}
-                    onChange={(event) => setAttackCode(event.target.value)}
-                    placeholder="Напр. f1-01"
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="attack-name"
-                    className="mb-1 block font-medium text-foreground-secondary"
-                  >
-                    Назва атаки
-                  </label>
-                  <input
-                    id="attack-name"
-                    type="text"
-                    value={attackName}
-                    onChange={(event) => setAttackName(event.target.value)}
-                    placeholder="Напр. Стандартний прохід"
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="attack-description"
-                    className="mb-1 block font-medium text-foreground-secondary"
-                  >
-                    Опис
-                  </label>
-                  <textarea
-                    id="attack-description"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Додаткові нотатки..."
-                    rows={3}
-                    className={`${inputClass} resize-y`}
-                  />
-                </div>
-
-               {/* Призначення гвг солдатів пресету атаки */}
-               <div className="space-y-2 rounded-lg border border-surface-border bg-surface-sunken/40 p-2.5">
-                 <label className="block font-medium text-foreground-secondary">
-                   Гвг солдати в пресеті
-                 </label>
-
-                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] gap-2 sm:flex sm:items-center">
-                    {/* Кастомний dropdown з картинками та rarity ring. */}
-                    <div ref={demonSoldierDropdownRef} className="relative min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsDemonSoldierDropdownOpen((open) => !open)
-                        }
-                        aria-haspopup="listbox"
-                        aria-expanded={isDemonSoldierDropdownOpen}
-                        aria-label="Вибрати гвг солдата"
-                        className={`flex min-h-11 w-full items-center gap-2 rounded-lg border bg-surface-sunken px-2.5 text-left text-sm outline-none transition-all ${
-                          isDemonSoldierDropdownOpen
-                            ? 'border-brand-accent bg-surface-raised shadow-[0_0_0_2px_rgba(245,158,11,0.12)]'
-                            : 'border-surface-border hover:border-brand-accent/50 hover:bg-surface-raised'
-                        }`}
-                      >
-                        {selectedDemonSoldier ? (
-                          <>
-                            <SoldierImage
-                              soldier={selectedDemonSoldier}
-                              className={`h-8 w-8 shrink-0 rounded-md ring-1 ${
-                                RARITY_RING[selectedDemonSoldier.rarity] || 'ring-gray-600'
-                              }`}
-                              fallbackClassName="text-xs"
-                            />
-                            <span className="min-w-0 flex-1 truncate">
-                              <span className="block truncate font-semibold text-foreground-primary">
-                                {selectedDemonSoldier.name}
-                              </span>
-                              <span className="block truncate text-[10px] text-foreground-muted">
-                                {selectedDemonSoldier.rarity || 'Common'} · рівень {selectedDemonSoldier.level ?? 1}
-                              </span>
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-surface-border bg-surface-overlay text-sm text-foreground-muted">
-                              ⚡
-                            </span>
-                            <span className="min-w-0 flex-1 truncate text-foreground-muted">
-                              Обери солдата…
-                            </span>
-                          </>
-                        )}
-
-                        <span
-                          aria-hidden="true"
-                          className={`shrink-0 text-xs text-foreground-muted transition-transform duration-150 ${
-                            isDemonSoldierDropdownOpen ? 'rotate-180' : ''
-                          }`}
-                        >
-                          ▾
-                        </span>
-                      </button>
-
-                      {isDemonSoldierDropdownOpen && (
-                        <div className="absolute inset-x-0 top-full z-[80] mt-1 overflow-hidden rounded-xl border border-surface-border bg-surface-raised shadow-2xl ring-1 ring-black/30">
-                          <div className="border-b border-surface-border bg-surface-raised p-2">
-                            <input
-                              type="search"
-                              value={demonSoldierSearchQuery}
-                              onChange={(event) =>
-                                setDemonSoldierSearchQuery(event.target.value)
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === 'Escape') {
-                                  setIsDemonSoldierDropdownOpen(false);
-                                }
-                              }}
-                              autoFocus
-                              placeholder="Пошук солдата..."
-                              aria-label="Пошук гвг солдата"
-                              className={`${inputClass} h-9 bg-surface-sunken text-xs`}
-                            />
-                          </div>
-
-                          <div
-                            className="max-h-[50vh] overflow-y-auto overscroll-contain p-1 sm:max-h-72"
-                            role="listbox"
-                            aria-label="Список гвг солдатів"
-                          >
-                            {visibleDemonSoldiers.length === 0 ? (
-                              <div className="px-3 py-5 text-center text-xs text-foreground-muted">
-                                Солдатів не знайдено.
-                              </div>
-                            ) : (
-                              visibleDemonSoldiers.map((soldier) => {
-                                const rarityRing =
-                                  RARITY_RING[soldier.rarity] || 'ring-gray-600';
-                                const isSelected =
-                                  String(selectedDemonSoldierId) ===
-                                  String(soldier.id);
-
-                                return (
-                                  <button
-                                    key={soldier.id}
-                                    type="button"
-                                    role="option"
-                                    aria-selected={isSelected}
-                                    onClick={() => selectDemonSoldier(soldier)}
-                                    className={`group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                                      isSelected
-                                        ? 'bg-brand-accent/10 ring-1 ring-brand-accent/50'
-                                        : 'hover:bg-surface-sunken'
-                                    }`}
-                                  >
-                                    <SoldierImage
-                                      soldier={soldier}
-                                      className={`h-10 w-10 shrink-0 rounded-lg ring-2 ${rarityRing}`}
-                                      fallbackClassName="text-sm"
-                                    />
-
-                                    <span className="min-w-0 flex-1">
-                                      <span className="flex items-center gap-1.5">
-                                        <span className="truncate text-xs font-semibold text-foreground-primary">
-                                          {soldier.name}
-                                        </span>
-                                        {isSelected && (
-                                          <span className="shrink-0 text-[10px] font-bold text-brand-accent">
-                                            ✓
-                                          </span>
-                                        )}
-                                      </span>
-
-                                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-foreground-muted">
-                                        <span
-                                          className={
-                                            soldier.rarity === 'Legendary'
-                                              ? 'text-amber-400'
-                                              : soldier.rarity === 'Epic'
-                                                ? 'text-purple-400'
-                                                : soldier.rarity === 'Rare'
-                                                  ? 'text-blue-400'
-                                                  : 'text-foreground-muted'
-                                          }
-                                        >
-                                          {soldier.rarity || 'Common'}
-                                        </span>
-                                        <span>·</span>
-                                        <span>рівень {soldier.level ?? 1}</span>
-                                      </span>
-                                    </span>
-                                  </button>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <input
-                      type="number"
-                      min={1}
-                      value={demonSoldierQuantity}
-                      onChange={(event) =>
-                        setDemonSoldierQuantity(event.target.value)
-                      }
-                      aria-label="Кількість солдатів"
-                      className={`${inputClass} h-11 w-full shrink-0 sm:w-16`}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={addPresetSoldier}
-                      className={`${buttonSecondaryClass} col-span-2 min-h-10 w-full sm:w-auto`}
-                    >
-                      Додати
-                    </button>
-                  </div>
-                  </div>
-
-                 {presetSoldiers.length === 0 ? (
-                   <p className="text-[11px] text-foreground-muted">
-                     Гвг солдатів ще не призначено.
-                   </p>
-                 ) : (
-                   <ul className="space-y-1">
-                     {presetSoldiers.map((item) => {
-                       const soldierData = item.demonSoldier || demonSoldiers.find(s => s.id === item.demonSoldierId);
-                       const rarityRing = RARITY_RING[soldierData?.rarity] || 'ring-gray-600';
-
-                       return (
-                         <li
-                           key={item.demonSoldierId}
-                           className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-base px-2.5 py-2 text-[11px]"
-                         >
-                           <div className="flex items-center gap-2 truncate">
-                             {/* Іконка солдата в списку доданих з рамкою рідкості */}
-                             <SoldierImage
-                               soldier={soldierData}
-                               className={`h-8 w-8 shrink-0 rounded-md ring-1 ${rarityRing}`}
-                               fallbackClassName="text-[10px]"
-                             />
-
-                             <span className="truncate text-foreground-primary font-medium">
-                               {soldierData?.name || `Солдат #${item.demonSoldierId}`}
-                               <span className="ml-1 text-foreground-muted font-normal">
-                                 × {item.quantity}
-                               </span>
-                             </span>
-                           </div>
-
-                           <button
-                             type="button"
-                             onClick={() =>
-                               removePresetSoldier(item.demonSoldierId)
-                             }
-                             aria-label="Видалити солдата з пресету"
-                             title="Видалити солдата з пресету"
-                             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
-                           >
-                             ×
-                           </button>
-                         </li>
-                       );
-                     })}
-                   </ul>
-                 )}
-               </div>
-
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={savePreset}
-                    disabled={saving}
-                    className={`${buttonPrimaryClass} flex-1`}
-                  >
-                    {saving ? 'Збереження…' : 'Зберегти'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={resetRecord}
-                    className={buttonSecondaryClass}
-                  >
-                    Скинути
-                  </button>
-                </div>
-              </div>
-
-              {/* Пошук пресету */}
-              <div className="space-y-2 border-t border-surface-border pt-3">
-                <label
-                  htmlFor="search-code"
-                  className="block text-xs font-semibold text-foreground-secondary"
-                >
-                  Знайти за кодом
-                </label>
-
-                <div className="flex gap-2">
-                  <input
-                    id="search-code"
-                    type="text"
-                    value={searchCode}
-                    onChange={(event) => setSearchCode(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') findPresetByCode();
-                    }}
-                    placeholder="Код пресету..."
-                    className={`${inputClass} min-w-0`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={findPresetByCode}
-                    className={buttonSecondaryClass}
-                  >
-                    Знайти
-                  </button>
-                </div>
-              </div>
-
-              {/* Список пресетів */}
-              <div className="flex min-h-0 flex-1 flex-col border-t border-surface-border pt-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold text-foreground-secondary">
-                    Збережені пресети
-                  </h3>
-
-                  <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[10px] font-semibold text-foreground-muted">
-                    {presets.length}
-                  </span>
-                </div>
-
-                <div className="max-h-48 space-y-1.5 overflow-y-auto pr-1">
-                  {presets.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-surface-border px-3 py-4 text-center text-xs text-foreground-muted">
-                      Збережених пресетів поки немає.
-                    </p>
-                  ) : (
-                    presets.map((preset) => {
-                      const isOpened =
-                        openedPreset?.preset?.id === preset.id;
-
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => openPreset(preset.id)}
-                          aria-pressed={isOpened}
-                          className={`w-full rounded-lg border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
-                            isOpened
-                              ? 'border-brand-accent bg-brand-accent/10'
-                              : 'border-surface-border bg-surface-base hover:border-brand-accent/40 hover:bg-surface-sunken'
-                          }`}
-                        >
-                          <div className="font-mono text-xs font-bold text-brand-accent">
-                            {preset.presetCode}
-                          </div>
-                          <div className="mt-0.5 truncate text-[11px] text-foreground-secondary">
-                            {preset.name}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </aside>
-          </div>
-
           {/* Каталог героїв */}
-          <section className="border-t border-surface-border bg-surface-raised p-3">
-            <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <section className="min-w-0 border-t border-surface-border bg-surface-raised p-2 lg:col-span-2 lg:row-start-2">
+            <div className="mb-2 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
                   Каталог героїв
@@ -1689,6 +1192,403 @@ export default function GvgPage() {
               </span>
             </div>
           </section>
+
+            {/* Бічна панель керування */}
+            <aside className="flex min-w-0 flex-col gap-2 bg-surface-raised p-2 lg:col-start-2 lg:row-start-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
+                  Керування розстановкою
+                </h2>
+
+                <div className="flex items-center gap-1">
+                  {MAP_TYPES.map((type) => {
+                    const isActive = mapType === type.value;
+
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setMapType(type.value)}
+                        aria-pressed={isActive}
+                        className={`rounded-lg border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                          isActive
+                            ? 'border-brand-accent bg-brand-accent text-foreground-onAccent'
+                            : 'border-surface-border bg-surface-sunken text-foreground-secondary hover:border-brand-accent/50 hover:text-foreground-primary'
+                        }`}
+                      >
+                        {type.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 p-2.5 text-xs text-brand-danger-hover"
+                >
+                  {error}
+                </div>
+              )}
+
+              {notice && (
+                <div
+                  role="status"
+                  className="rounded-lg border border-brand-success/30 bg-brand-success/10 p-2.5 text-xs text-brand-success-hover"
+                >
+                  {notice}
+                </div>
+              )}
+
+              {/* Форма пресету */}
+              <div className="space-y-2 text-xs">
+                <div>
+                  <label
+                    htmlFor="attack-code"
+                    className="mb-1 block font-medium text-foreground-secondary"
+                  >
+                    Код пресету
+                  </label>
+                  <input
+                    id="attack-code"
+                    type="text"
+                    value={attackCode}
+                    onChange={(event) => setAttackCode(event.target.value)}
+                    placeholder="Напр. f1-01"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="attack-name"
+                    className="mb-1 block font-medium text-foreground-secondary"
+                  >
+                    Назва атаки
+                  </label>
+                  <input
+                    id="attack-name"
+                    type="text"
+                    value={attackName}
+                    onChange={(event) => setAttackName(event.target.value)}
+                    placeholder="Напр. Стандартний прохід"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="attack-description"
+                    className="mb-1 block font-medium text-foreground-secondary"
+                  >
+                    Опис
+                  </label>
+                  <textarea
+                    id="attack-description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    placeholder="Додаткові нотатки..."
+                    rows={2}
+                    className={`${inputClass} resize-y`}
+                  />
+                </div>
+
+               {/* Призначення гвг солдатів пресету атаки */}
+               <div className="space-y-1.5 rounded-lg border border-surface-border bg-surface-sunken/40 p-2">
+                 <label className="block font-medium text-foreground-secondary">
+                   Гвг солдати в пресеті
+                 </label>
+
+                 <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3.25rem_4rem] items-center gap-1.5">
+                    {/* Кастомний dropdown з картинками та rarity ring. */}
+                    <div ref={demonSoldierDropdownRef} className="relative w-full min-w-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setIsDemonSoldierDropdownOpen((open) => !open)
+                        }
+                        aria-haspopup="listbox"
+                        aria-expanded={isDemonSoldierDropdownOpen}
+                        aria-label="Вибрати гвг солдата"
+                        className={`flex min-h-11 w-full items-center gap-2 rounded-lg border bg-surface-sunken px-2.5 text-left text-sm outline-none transition-all ${
+                          isDemonSoldierDropdownOpen
+                            ? 'border-brand-accent bg-surface-raised shadow-[0_0_0_2px_rgba(245,158,11,0.12)]'
+                            : 'border-surface-border hover:border-brand-accent/50 hover:bg-surface-raised'
+                        }`}
+                      >
+                        {selectedDemonSoldier ? (
+                          <>
+                            <SoldierImage
+                              soldier={selectedDemonSoldier}
+                              className={`h-8 w-8 shrink-0 rounded-md ring-1 ${
+                                RARITY_RING[selectedDemonSoldier.rarity] || 'ring-gray-600'
+                              }`}
+                              fallbackClassName="text-xs"
+                            />
+                            <span className="min-w-0 flex-1 truncate">
+                              <span className="block truncate font-semibold text-foreground-primary">
+                                {selectedDemonSoldier.name}
+                              </span>
+                              <span className="block truncate text-[10px] text-foreground-muted">
+                                {selectedDemonSoldier.rarity || 'Common'} · рівень {selectedDemonSoldier.level ?? 1}
+                              </span>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-surface-border bg-surface-overlay text-sm text-foreground-muted">
+                              ⚡
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-foreground-muted">
+                              Обери солдата…
+                            </span>
+                          </>
+                        )}
+
+                        <span
+                          aria-hidden="true"
+                          className={`shrink-0 text-xs text-foreground-muted transition-transform duration-150 ${
+                            isDemonSoldierDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        >
+                          ▾
+                        </span>
+                      </button>
+
+                      {isDemonSoldierDropdownOpen && (
+                        <div className="absolute inset-x-0 top-full z-[80] mt-1 overflow-hidden rounded-xl border border-surface-border bg-surface-raised shadow-2xl ring-1 ring-black/30">
+                          <div className="border-b border-surface-border bg-surface-raised p-2">
+                            <input
+                              type="search"
+                              value={demonSoldierSearchQuery}
+                              onChange={(event) =>
+                                setDemonSoldierSearchQuery(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                  setIsDemonSoldierDropdownOpen(false);
+                                }
+                              }}
+                              autoFocus
+                              placeholder="Пошук солдата..."
+                              aria-label="Пошук гвг солдата"
+                              className={`${inputClass} h-9 bg-surface-sunken text-xs`}
+                            />
+                          </div>
+
+                          <div
+                            className="max-h-[50vh] overflow-y-auto overscroll-contain p-1 sm:max-h-72"
+                            role="listbox"
+                            aria-label="Список гвг солдатів"
+                          >
+                            {visibleDemonSoldiers.length === 0 ? (
+                              <div className="px-3 py-5 text-center text-xs text-foreground-muted">
+                                Солдатів не знайдено.
+                              </div>
+                            ) : (
+                              visibleDemonSoldiers.map((soldier) => {
+                                const rarityRing =
+                                  RARITY_RING[soldier.rarity] || 'ring-gray-600';
+                                const isSelected =
+                                  String(selectedDemonSoldierId) ===
+                                  String(soldier.id);
+
+                                return (
+                                  <button
+                                    key={soldier.id}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isSelected}
+                                    onClick={() => selectDemonSoldier(soldier)}
+                                    className={`group flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+                                      isSelected
+                                        ? 'bg-brand-accent/10 ring-1 ring-brand-accent/50'
+                                        : 'hover:bg-surface-sunken'
+                                    }`}
+                                  >
+                                    <SoldierImage
+                                      soldier={soldier}
+                                      className={`h-10 w-10 shrink-0 rounded-lg ring-2 ${rarityRing}`}
+                                      fallbackClassName="text-sm"
+                                    />
+
+                                    <span className="min-w-0 flex-1">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="truncate text-xs font-semibold text-foreground-primary">
+                                          {soldier.name}
+                                        </span>
+                                        {isSelected && (
+                                          <span className="shrink-0 text-[10px] font-bold text-brand-accent">
+                                            ✓
+                                          </span>
+                                        )}
+                                      </span>
+
+                                      <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] text-foreground-muted">
+                                        <span
+                                          className={
+                                            soldier.rarity === 'Legendary'
+                                              ? 'text-amber-400'
+                                              : soldier.rarity === 'Epic'
+                                                ? 'text-purple-400'
+                                                : soldier.rarity === 'Rare'
+                                                  ? 'text-blue-400'
+                                                  : 'text-foreground-muted'
+                                          }
+                                        >
+                                          {soldier.rarity || 'Common'}
+                                        </span>
+                                        <span>·</span>
+                                        <span>рівень {soldier.level ?? 1}</span>
+                                      </span>
+                                    </span>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <input
+                      type="number"
+                      min={1}
+                      value={demonSoldierQuantity}
+                      onChange={(event) =>
+                        setDemonSoldierQuantity(event.target.value)
+                      }
+                      aria-label="Кількість солдатів"
+                      className={`${inputClass} h-11 w-full min-w-0 px-2 text-center`}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={addPresetSoldier}
+                      className="inline-flex min-h-11 w-full min-w-0 items-center justify-center whitespace-nowrap rounded-lg border border-surface-border bg-surface-sunken px-2 text-[10px] font-semibold text-foreground-secondary transition-colors hover:border-brand-accent/50 hover:bg-surface-raised hover:text-foreground-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Додати
+                    </button>
+                  </div>
+
+                 {presetSoldiers.length === 0 ? (
+                   <p className="text-[11px] text-foreground-muted">
+                     Гвг солдатів ще не призначено.
+                   </p>
+                 ) : (
+                   <ul className="space-y-1">
+                     {presetSoldiers.map((item) => {
+                       const soldierData = item.demonSoldier || demonSoldiers.find(s => s.id === item.demonSoldierId);
+                       const rarityRing = RARITY_RING[soldierData?.rarity] || 'ring-gray-600';
+
+                       return (
+                         <li
+                           key={item.demonSoldierId}
+                           className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-base px-2 py-1.5 text-[11px]"
+                         >
+                           <div className="flex items-center gap-2 truncate">
+                             {/* Іконка солдата в списку доданих з рамкою рідкості */}
+                             <SoldierImage
+                               soldier={soldierData}
+                               className={`h-8 w-8 shrink-0 rounded-md ring-1 ${rarityRing}`}
+                               fallbackClassName="text-[10px]"
+                             />
+
+                             <span className="truncate text-foreground-primary font-medium">
+                               {soldierData?.name || `Солдат #${item.demonSoldierId}`}
+                               <span className="ml-1 text-foreground-muted font-normal">
+                                 × {item.quantity}
+                               </span>
+                             </span>
+                           </div>
+
+                           <button
+                             type="button"
+                             onClick={() =>
+                               removePresetSoldier(item.demonSoldierId)
+                             }
+                             aria-label="Видалити солдата з пресету"
+                             title="Видалити солдата з пресету"
+                             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
+                           >
+                             ×
+                           </button>
+                         </li>
+                       );
+                     })}
+                   </ul>
+                 )}
+               </div>
+
+                <div className="flex gap-2 pt-0">
+                  <button
+                    type="button"
+                    onClick={savePreset}
+                    disabled={saving}
+                    className={`${buttonPrimaryClass} flex-1`}
+                  >
+                    {saving ? 'Збереження…' : 'Зберегти'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={resetRecord}
+                    className={buttonSecondaryClass}
+                  >
+                    Скинути
+                  </button>
+                </div>
+              </div>
+
+              {/* Список пресетів */}
+              <div className="flex min-h-0 flex-1 flex-col border-t border-surface-border pt-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-bold text-foreground-secondary">
+                    Збережені пресети
+                  </h3>
+
+                  <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[10px] font-semibold text-foreground-muted">
+                    {presets.length}
+                  </span>
+                </div>
+
+                <div className="max-h-[104px] space-y-1 overflow-y-auto overscroll-contain pr-1">
+                  {presets.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-surface-border px-3 py-4 text-center text-xs text-foreground-muted">
+                      Збережених пресетів поки немає.
+                    </p>
+                  ) : (
+                    presets.map((preset) => {
+                      const isOpened =
+                        openedPreset?.preset?.id === preset.id;
+
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => openPreset(preset.id)}
+                          aria-pressed={isOpened}
+                          className={`w-full rounded-lg border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                            isOpened
+                              ? 'border-brand-accent bg-brand-accent/10'
+                              : 'border-surface-border bg-surface-base hover:border-brand-accent/40 hover:bg-surface-sunken'
+                          }`}
+                        >
+                          <div className="font-mono text-xs font-bold text-brand-accent">
+                            {preset.presetCode}
+                          </div>
+                          <div className="mt-0.5 truncate text-[11px] text-foreground-secondary">
+                            {preset.name}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
       )}
     </div>
