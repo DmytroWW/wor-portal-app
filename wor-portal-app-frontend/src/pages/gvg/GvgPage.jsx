@@ -6,6 +6,9 @@ const MAP_TYPES = [
   { value: 'TOWER', label: 'Tower' },
 ];
 
+const MAX_HEROES_LIMIT = 5;
+const FAVORITES_STORAGE_KEY = 'gvg_favorite_hero_ids';
+
 const RARITY_RING = {
   Common: 'ring-gray-400',
   Uncommon: 'ring-green-400',
@@ -47,8 +50,6 @@ const MAP_DIMENSIONS = {
   TOWER: { width: 1920, height: 1080 },
 };
 
-// Окремі контрольні точки адаптивного калібрування для кожної мапи.
-// Для ширин між контрольними точками параметри плавно інтерполюються.
 const RESPONSIVE_GRID_CALIBRATION = {
   TOWER: [
     { width: 320, offsetX: 1, offsetY: -29, scale: 0.97, widthPct: 73, heightPct: 95 },
@@ -145,44 +146,33 @@ const RESPONSIVE_TYPOGRAPHY_CSS = `
   .gvg-page [class~="text-[11px]"] { font-size: calc(11px * var(--gvg-font-scale)) !important; }
   .gvg-page [class~="text-xs"] { font-size: calc(0.75rem * var(--gvg-font-scale)) !important; }
   .gvg-page [class~="text-sm"] { font-size: calc(0.875rem * var(--gvg-font-scale)) !important; }
+
+  .gvg-map-node-arrow {
+    width: clamp(9px, 1.5vw, 12px) !important;
+    height: clamp(9px, 1.5vw, 12px) !important;
+    font-size: clamp(7px, 1.1vw, 9px) !important;
+  }
+  .gvg-map-node-close {
+    width: clamp(9px, 1.4vw, 11px) !important;
+    height: clamp(9px, 1.4vw, 11px) !important;
+    font-size: clamp(6px, 1vw, 8px) !important;
+  }
+
   @media (max-width: 1280px) { .gvg-page { --gvg-font-scale: 0.96; } }
   @media (max-width: 1024px) { .gvg-page { --gvg-font-scale: 0.92; } }
   @media (max-width: 768px) { .gvg-page { --gvg-font-scale: 0.88; } }
   @media (max-width: 480px) { .gvg-page { --gvg-font-scale: 0.84; } }
 `;
 
-// Напрямки, кути повороту стрілки за годинниковою стрілкою та її позиція
-// на краю клітинки (сама іконка героя при цьому ніколи не обертається).
 const ATTACK_DIRECTIONS = [
-  {
-    value: 'UP',
-    arrow: '↑',
-    angle: 0,
-    position: 'left-1/2 top-0.5 -translate-x-1/2',
-  },
-  {
-    value: 'RIGHT',
-    arrow: '↑',
-    angle: 90,
-    position: 'right-0.5 top-1/2 -translate-y-1/2',
-  },
-  {
-    value: 'DOWN',
-    arrow: '↑',
-    angle: 180,
-    position: 'left-1/2 bottom-0.5 -translate-x-1/2',
-  },
-  {
-    value: 'LEFT',
-    arrow: '↑',
-    angle: 270,
-    position: 'left-0.5 top-1/2 -translate-y-1/2',
-  },
+  { value: 'UP', arrow: '↑', angle: 0, position: 'left-1/2 top-2 -translate-x-1/2' },
+  { value: 'RIGHT', arrow: '↑', angle: 90, position: 'right-1 top-1/2 -translate-y-1/2' },
+  { value: 'DOWN', arrow: '↑', angle: 180, position: 'left-1/2 bottom-1 -translate-x-1/2' },
+  { value: 'LEFT', arrow: '↑', angle: 270, position: 'left-1 top-1/2 -translate-y-1/2' },
 ];
 
 const getDirection = (direction) =>
-  ATTACK_DIRECTIONS.find((item) => item.value === direction) ||
-  ATTACK_DIRECTIONS[2];
+  ATTACK_DIRECTIONS.find((item) => item.value === direction) || ATTACK_DIRECTIONS[2];
 
 const errorMessage = (error) =>
   error?.response?.data?.message ||
@@ -208,6 +198,9 @@ export default function GvgPage() {
   const [presets, setPresets] = useState([]);
   const [openedPreset, setOpenedPreset] = useState(null);
 
+  const [originalHeroIds, setOriginalHeroIds] = useState([]);
+  const [originalSoldierIds, setOriginalSoldierIds] = useState([]);
+
   const [selectedHeroId, setSelectedHeroId] = useState(null);
   const [heroPlacements, setHeroPlacements] = useState({});
 
@@ -215,7 +208,6 @@ export default function GvgPage() {
   const [attackName, setAttackName] = useState('');
   const [description, setDescription] = useState('');
 
-  // Гвг солдати, призначені пресету атаки.
   const [demonSoldiers, setDemonSoldiers] = useState([]);
   const [presetSoldiers, setPresetSoldiers] = useState([]);
   const [selectedDemonSoldierId, setSelectedDemonSoldierId] = useState('');
@@ -227,13 +219,23 @@ export default function GvgPage() {
   const [heroSearchQuery, setHeroSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('NAME');
 
+  const [favoriteHeroIds, setFavoriteHeroIds] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem(FAVORITES_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingPresetId, setDeletingPresetId] = useState(null);
 
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  // Ширина вікна визначає автоматичні параметри сітки для поточного типу мапи.
   const [viewportWidth, setViewportWidth] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1280
   );
@@ -266,35 +268,21 @@ export default function GvgPage() {
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [isDemonSoldierDropdownOpen]);
 
-  const loadMap = useCallback(async () => {
+  const loadMap = useCallback(async (targetMapType) => {
+    const typeToLoad = targetMapType || mapType;
     setLoading(true);
     setError('');
-    setNotice('');
-    setOpenedPreset(null);
 
     try {
-      const mapResponse = await api.get(
-        `/gvg/maps/active?type=${mapType}`
-      );
-
+      const mapResponse = await api.get(`/gvg/maps/active?type=${typeToLoad}`);
       const activeMap = mapResponse.data;
       setMap(activeMap);
 
-      const tilesResponse = await api.get(
-        `/gvg/maps/${activeMap.id}/tiles`
-      );
-
-      setTiles(
-        Array.isArray(tilesResponse.data) ? tilesResponse.data : []
-      );
-
-      setHeroPlacements({});
-      setSelectedHeroId(null);
+      const tilesResponse = await api.get(`/gvg/maps/${activeMap.id}/tiles`);
+      setTiles(Array.isArray(tilesResponse.data) ? tilesResponse.data : []);
     } catch (err) {
       setMap(null);
       setTiles([]);
-      setHeroPlacements({});
-      setSelectedHeroId(null);
       setError(errorMessage(err));
     } finally {
       setLoading(false);
@@ -335,8 +323,24 @@ export default function GvgPage() {
   }, [loadHeroes, loadPresets, loadDemonSoldiers]);
 
   useEffect(() => {
-    loadMap();
-  }, [loadMap]);
+    loadMap(mapType);
+  }, [mapType, loadMap]);
+
+  const toggleFavoriteHero = (heroId, event) => {
+    event.stopPropagation();
+    setFavoriteHeroIds((current) => {
+      const updated = current.includes(heroId)
+        ? current.filter((id) => id !== heroId)
+        : [...current, heroId];
+
+      try {
+        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to save favorites to localStorage', err);
+      }
+      return updated;
+    });
+  };
 
   const tileLookup = useMemo(() => {
     const lookup = new Map();
@@ -349,12 +353,7 @@ export default function GvgPage() {
   }, [tiles]);
 
   const occupiedTileIds = useMemo(
-    () =>
-      new Set(
-        Object.values(heroPlacements)
-          .map((placement) => placement.tileId)
-          .filter(Boolean)
-      ),
+    () => new Set(Object.values(heroPlacements).map((placement) => placement.tileId).filter(Boolean)),
     [heroPlacements]
   );
 
@@ -362,9 +361,7 @@ export default function GvgPage() {
     setError('');
     setNotice('');
 
-    setSelectedHeroId((current) =>
-      current === hero.id ? null : hero.id
-    );
+    setSelectedHeroId((current) => (current === hero.id ? null : hero.id));
   };
 
   const placeHero = (tile) => {
@@ -376,11 +373,14 @@ export default function GvgPage() {
     if (!tile || tile.tileType === 'EMPTY') return;
 
     const existingPlacement = heroPlacements[selectedHeroId];
+    const currentPlacedCount = Object.keys(heroPlacements).length;
 
-    if (
-      occupiedTileIds.has(tile.id) &&
-      existingPlacement?.tileId !== tile.id
-    ) {
+    if (!existingPlacement && currentPlacedCount >= MAX_HEROES_LIMIT) {
+      setError(`Можна виставити максимум ${MAX_HEROES_LIMIT} героїв на мапу.`);
+      return;
+    }
+
+    if (occupiedTileIds.has(tile.id) && existingPlacement?.tileId !== tile.id) {
       setError('Ця клітинка вже зайнята іншим героєм.');
       return;
     }
@@ -392,8 +392,7 @@ export default function GvgPage() {
         tileId: tile.id,
         x: tile.x,
         y: tile.y,
-        attackDirection:
-          current[selectedHeroId]?.attackDirection || 'DOWN',
+        attackDirection: current[selectedHeroId]?.attackDirection || 'DOWN',
       },
     }));
 
@@ -401,26 +400,19 @@ export default function GvgPage() {
     setNotice(`Героя розміщено на (${tile.x}, ${tile.y}).`);
   };
 
-  // Повертає тільки стрілку напрямку героя за годинниковою стрілкою на 90°.
-  // Іконка героя при цьому залишається нерухомою.
   const rotateHero = (heroId) => {
     setHeroPlacements((current) => {
       const placement = current[heroId];
 
       if (!placement) return current;
 
-      const currentDirection = getDirection(
-        placement.attackDirection
-      );
+      const currentDirection = getDirection(placement.attackDirection);
 
       const currentIndex = ATTACK_DIRECTIONS.findIndex(
         (direction) => direction.value === currentDirection.value
       );
 
-      const nextDirection =
-        ATTACK_DIRECTIONS[
-          (currentIndex + 1) % ATTACK_DIRECTIONS.length
-        ];
+      const nextDirection = ATTACK_DIRECTIONS[(currentIndex + 1) % ATTACK_DIRECTIONS.length];
 
       return {
         ...current,
@@ -459,9 +451,7 @@ export default function GvgPage() {
       return;
     }
 
-    const soldier = demonSoldiers.find(
-      (item) => String(item.id) === String(selectedDemonSoldierId)
-    );
+    const soldier = demonSoldiers.find((item) => String(item.id) === String(selectedDemonSoldierId));
 
     if (!soldier) {
       setError('Такого гвг солдата не знайдено.');
@@ -471,9 +461,7 @@ export default function GvgPage() {
     const quantity = Math.max(1, Number(demonSoldierQuantity) || 1);
 
     setPresetSoldiers((current) => {
-      const existingIndex = current.findIndex(
-        (item) => item.demonSoldierId === soldier.id
-      );
+      const existingIndex = current.findIndex((item) => item.demonSoldierId === soldier.id);
 
       if (existingIndex >= 0) {
         const updated = [...current];
@@ -484,10 +472,7 @@ export default function GvgPage() {
         return updated;
       }
 
-      return [
-        ...current,
-        { demonSoldierId: soldier.id, quantity, demonSoldier: soldier },
-      ];
+      return [...current, { demonSoldierId: soldier.id, quantity, demonSoldier: soldier }];
     });
 
     setSelectedDemonSoldierId('');
@@ -498,9 +483,7 @@ export default function GvgPage() {
   };
 
   const removePresetSoldier = (demonSoldierId) => {
-    setPresetSoldiers((current) =>
-      current.filter((item) => item.demonSoldierId !== demonSoldierId)
-    );
+    setPresetSoldiers((current) => current.filter((item) => item.demonSoldierId !== demonSoldierId));
   };
 
   const resetRecord = () => {
@@ -515,6 +498,8 @@ export default function GvgPage() {
     setDemonSoldierSearchQuery('');
     setIsDemonSoldierDropdownOpen(false);
     setOpenedPreset(null);
+    setOriginalHeroIds([]);
+    setOriginalSoldierIds([]);
     setError('');
     setNotice('Запис скинуто.');
   };
@@ -523,6 +508,8 @@ export default function GvgPage() {
     setHeroSearchQuery('');
     setClassFilter('ALL');
   };
+
+  const isEditingPreset = Boolean(openedPreset?.preset?.id);
 
   const savePreset = async () => {
     setError('');
@@ -550,35 +537,101 @@ export default function GvgPage() {
       return;
     }
 
+    if (placements.length > MAX_HEROES_LIMIT) {
+      setError(`Можна виставити максимум ${MAX_HEROES_LIMIT} героїв.`);
+      return;
+    }
+
     setSaving(true);
 
     try {
-      const presetResponse = await api.post('/gvg/presets', {
-        mapId: map.id,
-        presetCode: attackCode.trim(),
-        name: attackName.trim(),
-        description: description.trim() || null,
-      });
+      if (isEditingPreset && openedPreset) {
+        const presetId = openedPreset.preset.id;
 
-      const preset = presetResponse.data;
-
-      for (const placement of placements) {
-        await api.post(`/gvg/presets/${preset.id}/heroes`, {
-          heroId: placement.heroId,
-          tileId: placement.tileId,
-          attackDirection: placement.attackDirection,
+        const presetResponse = await api.put(`/gvg/presets/${presetId}`, {
+          presetCode: attackCode.trim(),
+          name: attackName.trim(),
+          description: description.trim() || null,
         });
-      }
 
-      for (const soldier of presetSoldiers) {
-        await api.post(`/gvg/presets/${preset.id}/demon-soldiers`, {
-          demonSoldierId: soldier.demonSoldierId,
-          quantity: soldier.quantity,
+        const preset = presetResponse.data;
+
+        const currentHeroIds = new Set(placements.map((placement) => placement.heroId));
+        const originalHeroIdsSet = new Set(originalHeroIds);
+
+        const heroIdsToRemove = originalHeroIds.filter((heroId) => !currentHeroIds.has(heroId));
+        for (const heroId of heroIdsToRemove) {
+          await api.delete(`/gvg/presets/${presetId}/heroes/${heroId}`);
+        }
+
+        for (const placement of placements) {
+          const heroData = {
+            heroId: placement.heroId,
+            tileId: placement.tileId,
+            attackDirection: placement.attackDirection,
+          };
+
+          if (originalHeroIdsSet.has(placement.heroId)) {
+            await api.put(`/gvg/presets/${presetId}/heroes/${placement.heroId}`, heroData);
+          } else {
+            await api.post(`/gvg/presets/${presetId}/heroes`, heroData);
+          }
+        }
+
+        const currentSoldierIds = new Set(presetSoldiers.map((item) => item.demonSoldierId));
+        const originalSoldierIdsSet = new Set(originalSoldierIds);
+
+        const soldierIdsToRemove = originalSoldierIds.filter((id) => !currentSoldierIds.has(id));
+        for (const demonSoldierId of soldierIdsToRemove) {
+          await api.delete(`/gvg/presets/${presetId}/soldiers/${demonSoldierId}`);
+        }
+
+        for (const soldier of presetSoldiers) {
+          const soldierData = {
+            demonSoldierId: soldier.demonSoldierId,
+            quantity: soldier.quantity,
+          };
+
+          if (originalSoldierIdsSet.has(soldier.demonSoldierId)) {
+            await api.put(`/gvg/presets/${presetId}/soldiers/${soldier.demonSoldierId}`, soldierData);
+          } else {
+            await api.post(`/gvg/presets/${presetId}/soldiers`, soldierData);
+          }
+        }
+
+        setNotice(`Журнал атаки «${preset.presetCode}» оновлено.`);
+        setOriginalHeroIds(placements.map((placement) => placement.heroId));
+        setOriginalSoldierIds(presetSoldiers.map((item) => item.demonSoldierId));
+      } else {
+        const presetResponse = await api.post('/gvg/presets', {
+          mapId: map.id,
+          presetCode: attackCode.trim(),
+          name: attackName.trim(),
+          description: description.trim() || null,
         });
-      }
 
-      setNotice(`Журнал атаки «${preset.presetCode}» записано.`);
-      setOpenedPreset(null);
+        const preset = presetResponse.data;
+
+        for (const placement of placements) {
+          await api.post(`/gvg/presets/${preset.id}/heroes`, {
+            heroId: placement.heroId,
+            tileId: placement.tileId,
+            attackDirection: placement.attackDirection,
+          });
+        }
+
+        for (const soldier of presetSoldiers) {
+          await api.post(`/gvg/presets/${preset.id}/soldiers`, {
+            demonSoldierId: soldier.demonSoldierId,
+            quantity: soldier.quantity,
+          });
+        }
+
+        setNotice(`Журнал атаки «${preset.presetCode}» записано.`);
+        setOpenedPreset(null);
+        setOriginalHeroIds([]);
+        setOriginalSoldierIds([]);
+      }
 
       await loadPresets();
     } catch (err) {
@@ -593,11 +646,22 @@ export default function GvgPage() {
     setNotice('');
 
     try {
-      const response = await api.get(
-        `/gvg/presets/${presetId}/details`
-      );
-
+      const response = await api.get(`/gvg/presets/${presetId}/details`);
       const details = response.data;
+
+      const targetMapType =
+        details.map?.type ||
+        details.preset?.mapType ||
+        details.mapType ||
+        (details.map?.name?.toUpperCase().includes('FORT') ? 'FORT' : null) ||
+        (details.preset?.presetCode?.toLowerCase().includes('fort') ? 'FORT' : null) ||
+        'TOWER';
+
+      if (targetMapType && targetMapType !== mapType) {
+        setMapType(targetMapType);
+        await loadMap(targetMapType);
+      }
+
       setOpenedPreset(details);
 
       const restoredPlacements = {};
@@ -613,52 +677,66 @@ export default function GvgPage() {
       }
 
       setHeroPlacements(restoredPlacements);
+      setOriginalHeroIds((details.heroes || []).map((hero) => hero.heroId));
       setSelectedHeroId(null);
       setAttackCode(details.preset?.presetCode || '');
       setAttackName(details.preset?.name || '');
       setDescription(details.preset?.description || '');
 
-      // Гвг солдати пресету тягнуться окремим запитом, щоб не залежати
-      // від структури відповіді /details.
       try {
-        const soldiersResponse = await api.get(
-          `/gvg/presets/${presetId}/demon-soldiers`
-        );
+        const soldiersResponse = await api.get(`/gvg/presets/${presetId}/soldiers`);
+        const assigned = Array.isArray(soldiersResponse.data) ? soldiersResponse.data : [];
 
-        const assigned = Array.isArray(soldiersResponse.data)
-          ? soldiersResponse.data
-          : [];
+        const normalized = assigned.map((item) => {
+          const demonSoldierId = item.demonSoldierId ?? item.demonSoldier?.id;
 
-        setPresetSoldiers(
-          assigned.map((item) => {
-            const demonSoldierId =
-              item.demonSoldierId ?? item.demonSoldier?.id;
+          return {
+            demonSoldierId,
+            quantity: item.quantity ?? 1,
+            demonSoldier:
+              item.demonSoldier || demonSoldiers.find((soldier) => soldier.id === demonSoldierId) || null,
+          };
+        });
 
-            return {
-              demonSoldierId,
-              quantity: item.quantity ?? 1,
-              demonSoldier:
-                item.demonSoldier ||
-                demonSoldiers.find(
-                  (soldier) => soldier.id === demonSoldierId
-                ) || {
-                  id: demonSoldierId,
-                  name: item.demonSoldierName,
-                  rarity: item.rarity,
-                  level: item.level,
-                },
-            };
-          })
-        );
+        setPresetSoldiers(normalized);
+        setOriginalSoldierIds(normalized.map((item) => item.demonSoldierId));
       } catch {
         setPresetSoldiers([]);
+        setOriginalSoldierIds([]);
       }
 
-      setNotice(
-        `Завантажено атаку «${details.preset?.presetCode}».`
-      );
+      setNotice(`Завантажено атаку «${details.preset?.presetCode}».`);
     } catch (err) {
       setError(errorMessage(err));
+    }
+  };
+
+  const deletePreset = async (presetId, presetCode) => {
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        `Видалити пресет «${presetCode || presetId}»? Цю дію не можна скасувати.`
+      );
+
+      if (!confirmed) return;
+    }
+
+    setError('');
+    setNotice('');
+    setDeletingPresetId(presetId);
+
+    try {
+      await api.delete(`/gvg/presets/${presetId}`);
+
+      if (openedPreset?.preset?.id === presetId) {
+        resetRecord();
+      }
+
+      await loadPresets();
+      setNotice('Пресет видалено.');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setDeletingPresetId(null);
     }
   };
 
@@ -669,25 +747,17 @@ export default function GvgPage() {
           ...placement,
           hero: heroes.find((hero) => hero.id === placement.heroId),
         }))
-        .filter((item) => item.hero),
+        .filter((item) => Boolean(item.hero)),
     [heroPlacements, heroes]
   );
 
   const placedHeroesByTile = useMemo(
-    () =>
-      new Map(
-        placedHeroes.map((placement) => [
-          placement.tileId,
-          placement,
-        ])
-      ),
+    () => new Map(placedHeroes.map((placement) => [placement.tileId, placement])),
     [placedHeroes]
   );
 
   const heroClasses = useMemo(
-    () =>
-      [...new Set(heroes.map((hero) => hero.className).filter(Boolean))]
-        .sort(),
+    () => [...new Set(heroes.map((hero) => hero.className).filter(Boolean))].sort(),
     [heroes]
   );
 
@@ -701,28 +771,30 @@ export default function GvgPage() {
     if (heroSearchQuery.trim()) {
       const query = heroSearchQuery.trim().toLowerCase();
 
-      list = list.filter((hero) =>
-        hero.name?.toLowerCase().includes(query)
-      );
+      list = list.filter((hero) => hero.name?.toLowerCase().includes(query));
     }
 
+    const favoriteSet = new Set(favoriteHeroIds);
+
     return [...list].sort((a, b) => {
+      const isAFav = favoriteSet.has(a.id);
+      const isBFav = favoriteSet.has(b.id);
+
+      if (isAFav && !isBFav) return -1;
+      if (!isAFav && isBFav) return 1;
+
       if (sortBy === 'CLASS') {
         return (
-          (a.className || '').localeCompare(b.className || '') ||
-          (a.name || '').localeCompare(b.name || '')
+          (a.className || '').localeCompare(b.className || '') || (a.name || '').localeCompare(b.name || '')
         );
       }
 
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [heroes, classFilter, heroSearchQuery, sortBy]);
+  }, [heroes, classFilter, heroSearchQuery, sortBy, favoriteHeroIds]);
 
   const selectedDemonSoldier = useMemo(
-    () =>
-      demonSoldiers.find(
-        (soldier) => String(soldier.id) === String(selectedDemonSoldierId)
-      ) || null,
+    () => demonSoldiers.find((soldier) => String(soldier.id) === String(selectedDemonSoldierId)) || null,
     [demonSoldiers, selectedDemonSoldierId]
   );
 
@@ -731,9 +803,9 @@ export default function GvgPage() {
     if (!query) return demonSoldiers;
 
     return demonSoldiers.filter((soldier) =>
-      [soldier.name, soldier.rarity, soldier.faction]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query))
+      [soldier.name, soldier.rarity, soldier.faction].filter(Boolean).some((value) =>
+        String(value).toLowerCase().includes(query)
+      )
     );
   }, [demonSoldiers, demonSoldierSearchQuery]);
 
@@ -749,8 +821,6 @@ export default function GvgPage() {
       behavior: 'smooth',
     });
   };
-
-
 
   if (loading) {
     return (
@@ -776,14 +846,13 @@ export default function GvgPage() {
           <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
             {/* Мапа */}
             <section className="relative flex min-w-0 flex-col justify-center border-b border-surface-border bg-surface-base p-2 pb-2 pt-12 lg:col-start-1 lg:row-start-1 lg:border-b-0 lg:border-r">
-              {/* Заголовок мапи */}
               <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 bg-gradient-to-b from-surface-raised/95 to-transparent p-3">
                 <div>
                   <h1 className="text-sm font-bold tracking-wide text-foreground-primary">
                     Enemy Defense Setup — {map.name}
                   </h1>
                   <p className="mt-0.5 text-[10px] text-foreground-muted">
-                    Розстановка героїв на мапі
+                    Розстановка героїв на мапі ({Object.keys(heroPlacements).length}/{MAX_HEROES_LIMIT})
                   </p>
                 </div>
 
@@ -792,7 +861,6 @@ export default function GvgPage() {
                 </span>
               </div>
 
-              {/* Ігрове поле */}
               <div
                 className="gvg-map-canvas relative isolate mx-auto my-0 block w-full min-w-0 max-w-[1000px] overflow-hidden rounded-xl border border-surface-border bg-surface-overlay shadow-surface"
                 style={{
@@ -852,24 +920,21 @@ export default function GvgPage() {
                             type="button"
                             onClick={() => placeHero(tile)}
                             aria-label={
-                              placedHero
+                              placedHero && direction
                                 ? `${placedHero.hero.name}, координати ${x}, ${y}. Напрямок: ${direction.value}. Клікни по зображенню для повороту стрілки.`
                                 : `Клітинка ${x}, ${y}`
                             }
                             className={`relative flex h-full w-full items-center justify-center rounded-sm border transition-colors ${
                               placedHero
-                                ? 'z-10 border-brand-danger bg-brand-danger/20 shadow-[0_0_10px_rgba(239,68,68,0.6)]'
+                                ? 'z-10 border border-surface-border/80 bg-surface-base/40 shadow-sm'
                                 : isAvailableTarget
                                   ? 'z-10 animate-pulse border-brand-success/80 bg-brand-success/20 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
                                   : 'border-surface-border/70 bg-surface-overlay/20 hover:border-brand-accent/60 hover:bg-brand-accent/20'
                             }`}
                             title={`X: ${x}, Y: ${y} · ${tile.tileType}`}
                           >
-                            {placedHero && (
+                            {placedHero && direction && (
                               <>
-                                <span className="pointer-events-none absolute -inset-px rounded-sm border border-brand-danger" />
-
-                                {/* Іконка героя лишається нерухомою — обертається лише стрілка напрямку. */}
                                 <div
                                   role="button"
                                   tabIndex={0}
@@ -892,26 +957,22 @@ export default function GvgPage() {
                                   }}
                                   className="absolute inset-0.5 z-10 cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-accent"
                                 >
-                                  {/* Статична іконка героя, без трансформацій */}
-                                  <div className="h-full w-full overflow-hidden rounded-sm">
-                                    {placedHero.hero?.imageSlug ? (
-                                      <img
-                                        src={`/images/heroes/${placedHero.hero.imageSlug}.png`}
-                                        alt={placedHero.hero.name}
-                                        draggable="false"
-                                        className="pointer-events-none h-full w-full select-none object-cover"
-                                      />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center bg-brand-danger/20 text-[10px] font-bold text-foreground-primary">
-                                        {placedHero.hero?.name?.charAt(0)}
-                                      </div>
-                                    )}
-                                  </div>
+                                  {placedHero.hero?.imageSlug ? (
+                                    <img
+                                      src={`/images/heroes/${placedHero.hero.imageSlug}.png`}
+                                      alt={placedHero.hero.name}
+                                      draggable="false"
+                                      className="h-full w-full select-none object-cover rounded-sm"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center bg-surface-sunken text-xs font-bold text-brand-accent">
+                                      {placedHero.hero?.name?.charAt(0)}
+                                    </div>
+                                  )}
 
-                                  {/* Стрілка напрямку — єдиний елемент, що обертається та рухається по краю клітинки */}
                                   <span
                                     aria-hidden="true"
-                                    className={`pointer-events-none absolute flex h-4 w-4 items-center justify-center rounded-full border border-white/70 bg-black/75 text-sm font-black leading-none text-white shadow-md transition-transform duration-150 ease-in-out ${direction.position}`}
+                                    className={`pointer-events-none absolute gvg-map-node-arrow flex items-center justify-center rounded-full border border-surface-border bg-surface-raised/95 font-black leading-none text-brand-accent shadow-md transition-transform duration-150 ease-in-out ${direction.position}`}
                                     style={{
                                       transform: `rotate(${direction.angle}deg)`,
                                     }}
@@ -920,12 +981,13 @@ export default function GvgPage() {
                                   </span>
                                 </div>
 
-                                {/* Ім'я героя */}
-                                <span className="pointer-events-none absolute -top-4 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded bg-brand-danger px-1 py-0.5 text-[8px] font-bold text-white shadow-surface">
+                                <span
+                                  className="pointer-events-none absolute -top-3 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded border border-surface-border bg-surface-sunken/95 font-bold text-foreground-primary shadow-surface px-1"
+                                  style={{ fontSize: 'calc(7px * var(--gvg-font-scale))' }}
+                                >
                                   {placedHero.hero?.name || 'Hero'}
                                 </span>
 
-                                {/* Хрестик видалення героя з мапи */}
                                 <span
                                   role="button"
                                   tabIndex={0}
@@ -946,7 +1008,7 @@ export default function GvgPage() {
                                       removeHeroFromMap(placedHero.heroId);
                                     }
                                   }}
-                                  className="absolute -right-1.5 -top-1.5 z-40 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-white/30 bg-brand-danger text-[10px] font-black leading-none text-white shadow-md transition hover:scale-110 hover:bg-brand-danger-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-danger"
+                                  className="absolute -right-1 -top-1 z-40 flex gvg-map-node-close cursor-pointer items-center justify-center rounded-full border border-surface-border bg-surface-sunken font-black leading-none text-foreground-secondary shadow-md transition hover:scale-110 hover:bg-brand-danger hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-danger"
                                 >
                                   ×
                                 </span>
@@ -967,231 +1029,243 @@ export default function GvgPage() {
               </p>
             </section>
 
-          {/* Каталог героїв */}
-          <section className="min-w-0 border-t border-surface-border bg-surface-raised p-2 lg:col-span-2 lg:row-start-2">
-            <div className="mb-2 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
-                  Каталог героїв
-                </h3>
+            {/* Каталог героїв */}
+            <section className="min-w-0 border-t border-surface-border bg-surface-raised p-2 lg:col-span-2 lg:row-start-2">
+              <div className="mb-2 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
+                    Каталог героїв
+                  </h3>
 
-                <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[10px] font-semibold text-foreground-muted">
-                  {visibleHeroes.length}
-                </span>
-
-                {selectedHeroId && (
-                  <span className="rounded-full border border-brand-success/30 bg-brand-success/10 px-2 py-1 text-[10px] font-semibold text-brand-success-hover">
-                    Герой вибраний для розміщення
+                  <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[10px] font-semibold text-foreground-muted">
+                    {visibleHeroes.length}
                   </span>
-                )}
-              </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative w-full sm:w-40">
-                  <input
-                    type="text"
-                    value={heroSearchQuery}
-                    onChange={(event) =>
-                      setHeroSearchQuery(event.target.value)
-                    }
-                    placeholder="Пошук героя..."
-                    aria-label="Пошук героя"
-                    className={`${inputClass} py-1.5 pr-8 text-xs`}
-                  />
-
-                  {(heroSearchQuery || classFilter !== 'ALL') && (
-                    <button
-                      type="button"
-                      onClick={clearHeroFilters}
-                      aria-label="Скинути пошук та фільтри"
-                      title="Скинути пошук та фільтри"
-                      className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-sm font-bold text-brand-danger transition-colors hover:bg-brand-danger/10 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
-                    >
-                      ×
-                    </button>
+                  {selectedHeroId && (
+                    <span className="rounded-full border border-brand-success/30 bg-brand-success/10 px-2 py-1 text-[10px] font-semibold text-brand-success-hover">
+                      Герой вибраний для розміщення
+                    </span>
                   )}
                 </div>
 
-                <select
-                  value={classFilter}
-                  onChange={(event) => setClassFilter(event.target.value)}
-                  aria-label="Фільтр за класом"
-                  className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
-                >
-                  <option value="ALL">Усі класи</option>
-                  {heroClasses.map((className) => (
-                    <option key={className} value={className}>
-                      {className}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-40">
+                    <input
+                      type="text"
+                      value={heroSearchQuery}
+                      onChange={(event) =>
+                        setHeroSearchQuery(event.target.value)
+                      }
+                      placeholder="Пошук героя..."
+                      aria-label="Пошук героя"
+                      className={`${inputClass} py-1.5 pr-8 text-xs`}
+                    />
 
-                <select
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value)}
-                  aria-label="Сортування героїв"
-                  className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
-                >
-                  <option value="NAME">За ім'ям</option>
-                  <option value="CLASS">За класом</option>
-                </select>
+                    {(heroSearchQuery || classFilter !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={clearHeroFilters}
+                        aria-label="Скинути пошук та фільтри"
+                        title="Скинути пошук та фільтри"
+                        className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-sm font-bold text-brand-danger transition-colors hover:bg-brand-danger/10 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
 
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => scrollHeroList(-1)}
-                    aria-label="Прокрутити каталог ліворуч"
-                    title="Ліворуч"
-                    className={buttonSecondaryClass}
+                  <select
+                    value={classFilter}
+                    onChange={(event) => setClassFilter(event.target.value)}
+                    aria-label="Фільтр за класом"
+                    className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
                   >
-                    ←
-                  </button>
+                    <option value="ALL">Усі класи</option>
+                    {heroClasses.map((className) => (
+                      <option key={className} value={className}>
+                        {className}
+                      </option>
+                    ))}
+                  </select>
 
-                  <button
-                    type="button"
-                    onClick={() => scrollHeroList(1)}
-                    aria-label="Прокрутити каталог праворуч"
-                    title="Праворуч"
-                    className={buttonSecondaryClass}
+                  <select
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value)}
+                    aria-label="Сортування героїв"
+                    className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
                   >
-                    →
-                  </button>
+                    <option value="NAME">За ім'ям</option>
+                    <option value="CLASS">За класом</option>
+                  </select>
+
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => scrollHeroList(-1)}
+                      aria-label="Прокрутити каталог ліворуч"
+                      title="Ліворуч"
+                      className={buttonSecondaryClass}
+                    >
+                      ←
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => scrollHeroList(1)}
+                      aria-label="Прокрутити каталог праворуч"
+                      title="Праворуч"
+                      className={buttonSecondaryClass}
+                    >
+                      →
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {visibleHeroes.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-surface-border bg-surface-base p-6 text-center text-xs text-foreground-muted">
-                Героїв за вибраними фільтрами не знайдено.
-              </div>
-            ) : (
-              <div
-                ref={heroListRef}
-                className="flex gap-2.5 overflow-x-auto pb-2"
-              >
-                {visibleHeroes.map((hero) => {
-                  const isSelected = selectedHeroId === hero.id;
-                  const placement = heroPlacements[hero.id];
-                  const rarityRing =
-                    RARITY_RING[hero.rarity] || 'ring-gray-600';
+              {visibleHeroes.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-surface-border bg-surface-base p-6 text-center text-xs text-foreground-muted">
+                  Героїв за вибраними фільтрами не знайдено.
+                </div>
+              ) : (
+                <div
+                  ref={heroListRef}
+                  className="flex gap-2.5 overflow-x-auto pb-2"
+                >
+                  {visibleHeroes.map((hero) => {
+                    const isSelected = selectedHeroId === hero.id;
+                    const isFavorite = favoriteHeroIds.includes(hero.id);
+                    const placement = heroPlacements[hero.id];
+                    const rarityRing = RARITY_RING[hero.rarity] || 'ring-gray-600';
 
-                  return (
-                    <div
-                      key={hero.id}
-                      onClick={() => selectHero(hero)}
-                      onKeyDown={(event) => {
-                        if (
-                          event.target === event.currentTarget &&
-                          (event.key === 'Enter' || event.key === ' ')
-                        ) {
-                          event.preventDefault();
-                          selectHero(hero);
+                    return (
+                      <div
+                        key={hero.id}
+                        onClick={() => selectHero(hero)}
+                        onKeyDown={(event) => {
+                          if (
+                            event.target === event.currentTarget &&
+                            (event.key === 'Enter' || event.key === ' ')
+                          ) {
+                            event.preventDefault();
+                            selectHero(hero);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={isSelected}
+                        title={
+                          placement
+                            ? `${hero.name} — (${placement.x}, ${placement.y})`
+                            : `Вибрати ${hero.name}`
                         }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-pressed={isSelected}
-                      title={
-                        placement
-                          ? `${hero.name} — (${placement.x}, ${placement.y})`
-                          : `Вибрати ${hero.name}`
-                      }
-                      className={`group relative w-24 flex-shrink-0 cursor-pointer select-none rounded-xl border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
-                        isSelected
-                          ? 'border-brand-accent bg-brand-accent/10 shadow-brand-accent'
-                          : placement
-                            ? 'border-brand-success/50 bg-brand-success/5'
-                            : 'border-surface-border bg-surface-base hover:border-brand-accent/50 hover:bg-surface-sunken'
-                      }`}
-                    >
-                      <div className="relative mx-auto h-14 w-14 rounded-lg bg-surface-overlay">
-                        {hero.imageSlug ? (
-                          <img
-                            src={`/images/heroes/${hero.imageSlug}.png`}
-                            alt={hero.name}
-                            draggable="false"
-                            className={`h-full w-full rounded-lg object-cover ring-2 ${rarityRing}`}
-                          />
-                        ) : (
-                          <div
-                            className={`flex h-full w-full items-center justify-center rounded-lg bg-surface-sunken text-sm font-bold text-brand-accent ring-2 ${rarityRing}`}
-                          >
-                            {hero.name?.charAt(0)}
-                          </div>
-                        )}
-
-                        {placement && (
-                          <span
-                            className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-surface-raised bg-brand-success text-[9px] font-bold text-white shadow-sm"
-                            aria-label="Героя розміщено"
-                            title="Розміщено на мапі"
-                          >
-                            ✓
-                          </span>
-                        )}
-                      </div>
-
-                      <p className="mt-2 truncate text-center text-[10px] font-bold text-foreground-primary">
-                        {hero.name}
-                      </p>
-
-                      <p className="truncate text-center text-[9px] text-foreground-muted">
-                        {hero.className || 'Hero'}
-                      </p>
-
-                      {placement && (
-                        <div className="mt-2 flex items-center justify-between gap-1 border-t border-surface-border pt-1.5">
-                          <span className="font-mono text-[9px] text-brand-success-hover">
-                            ({placement.x},{placement.y})
-                          </span>
+                        className={`group relative w-24 flex-shrink-0 cursor-pointer select-none rounded-xl border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                          isSelected
+                            ? 'border-brand-accent bg-brand-accent/10 shadow-brand-accent'
+                            : placement
+                              ? 'border-brand-success/50 bg-brand-success/5'
+                              : 'border-surface-border bg-surface-base hover:border-brand-accent/50 hover:bg-surface-sunken'
+                        }`}
+                      >
+                        <div className="relative mx-auto h-14 w-14 rounded-lg bg-surface-overlay">
+                          {hero.imageSlug ? (
+                            <img
+                              src={`/images/heroes/${hero.imageSlug}.png`}
+                              alt={hero.name}
+                              draggable="false"
+                              className={`h-full w-full rounded-lg object-cover ring-2 ${rarityRing}`}
+                            />
+                          ) : (
+                            <div
+                              className={`flex h-full w-full items-center justify-center rounded-lg bg-surface-sunken text-sm font-bold text-brand-accent ring-2 ${rarityRing}`}
+                            >
+                              {hero.name?.charAt(0)}
+                            </div>
+                          )}
 
                           <button
                             type="button"
-                            aria-label={`Прибрати ${hero.name} з мапи`}
-                            title="Прибрати з мапи"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removeHeroFromMap(hero.id);
-                            }}
-                            className="flex h-5 w-5 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
+                            onClick={(e) => toggleFavoriteHero(hero.id, e)}
+                            aria-label={isFavorite ? 'Прибрати з обраних' : 'Додати в обрані'}
+                            title={isFavorite ? 'В обраних' : 'Додати в обрані'}
+                            className={`absolute -left-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-surface-raised transition-transform hover:scale-110 ${
+                              isFavorite
+                                ? 'bg-amber-400 text-black font-black'
+                                : 'bg-surface-sunken/80 text-foreground-muted hover:text-amber-400'
+                            }`}
                           >
-                            ×
+                            ★
                           </button>
+
+                          {placement && (
+                            <span
+                              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-surface-raised bg-brand-success text-[9px] font-bold text-white shadow-sm"
+                              aria-label="Героя розміщено"
+                              title="Розміщено на мапі"
+                            >
+                              ✓
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+
+                        <p className="mt-2 truncate text-center text-[10px] font-bold text-foreground-primary">
+                          {hero.name}
+                        </p>
+
+                        <p className="truncate text-center text-[9px] text-foreground-muted">
+                          {hero.className || 'Hero'}
+                        </p>
+
+                        {placement && (
+                          <div className="mt-2 flex items-center justify-between gap-1 border-t border-surface-border pt-1.5">
+                            <span className="font-mono text-[9px] text-brand-success-hover">
+                              ({placement.x},{placement.y})
+                            </span>
+
+                            <button
+                              type="button"
+                              aria-label={`Прибрати ${hero.name} з мапи`}
+                              title="Прибрати з мапи"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeHeroFromMap(hero.id);
+                              }}
+                              className="flex h-5 w-5 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Легенда */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-surface-border pt-3 text-[10px] text-foreground-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-brand-accent bg-brand-accent/20" />
+                  Вибраний герой
+                </span>
+
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border border-brand-success bg-brand-success/20" />
+                  Героя розміщено
+                </span>
+
+                <span className="flex items-center gap-1.5">
+                  <span className="text-amber-400 font-bold">★</span>
+                  Обраний герой (завжди зверху)
+                </span>
+
+                <span className="flex items-center gap-1.5">
+                  <span className="flex h-3 w-3 items-center justify-center rounded-full bg-brand-danger text-[9px] font-bold text-white">
+                    ×
+                  </span>
+                  Прибрати героя з мапи
+                </span>
               </div>
-            )}
-
-            {/* Легенда */}
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-surface-border pt-3 text-[10px] text-foreground-muted">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm border border-brand-accent bg-brand-accent/20" />
-                Вибраний герой
-              </span>
-
-              <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm border border-brand-success bg-brand-success/20" />
-                Героя розміщено
-              </span>
-
-              <span className="flex items-center gap-1.5">
-                <span className="flex h-3 w-3 items-center justify-center rounded-full bg-brand-danger text-[9px] font-bold text-white">
-                  ×
-                </span>
-                Прибрати героя з мапи
-              </span>
-
-              <span className="flex items-center gap-1.5">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full border border-surface-border bg-surface-sunken text-xs font-bold text-foreground-primary">
-                  ↑
-                </span>
-                Клік по герою повертає стрілку напрямку на 90° (іконка героя нерухома)
-              </span>
-            </div>
-          </section>
+            </section>
 
             {/* Бічна панель керування */}
             <aside className="flex min-w-0 flex-col gap-2 bg-surface-raised p-2 lg:col-start-2 lg:row-start-1">
@@ -1294,20 +1368,17 @@ export default function GvgPage() {
                   />
                 </div>
 
-               {/* Призначення гвг солдатів пресету атаки */}
-               <div className="space-y-1.5 rounded-lg border border-surface-border bg-surface-sunken/40 p-2">
-                 <label className="block font-medium text-foreground-secondary">
-                   Гвг солдати в пресеті
-                 </label>
+                {/* Призначення гвг солдатів пресету атаки */}
+                <div className="space-y-1.5 rounded-lg border border-surface-border bg-surface-sunken/40 p-2">
+                  <label className="block font-medium text-foreground-secondary">
+                    Гвг солдати в пресеті
+                  </label>
 
-                 <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3.25rem_4rem] items-center gap-1.5">
-                    {/* Кастомний dropdown з картинками та rarity ring. */}
+                  <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3.25rem_4rem] items-center gap-1.5">
                     <div ref={demonSoldierDropdownRef} className="relative w-full min-w-0">
                       <button
                         type="button"
-                        onClick={() =>
-                          setIsDemonSoldierDropdownOpen((open) => !open)
-                        }
+                        onClick={() => setIsDemonSoldierDropdownOpen((open) => !open)}
                         aria-haspopup="listbox"
                         aria-expanded={isDemonSoldierDropdownOpen}
                         aria-label="Вибрати гвг солдата"
@@ -1472,54 +1543,56 @@ export default function GvgPage() {
                     </button>
                   </div>
 
-                 {presetSoldiers.length === 0 ? (
-                   <p className="text-[11px] text-foreground-muted">
-                     Гвг солдатів ще не призначено.
-                   </p>
-                 ) : (
-                   <ul className="space-y-1">
-                     {presetSoldiers.map((item) => {
-                       const soldierData = item.demonSoldier || demonSoldiers.find(s => s.id === item.demonSoldierId);
-                       const rarityRing = RARITY_RING[soldierData?.rarity] || 'ring-gray-600';
+                  {presetSoldiers.length === 0 ? (
+                    <p className="text-[11px] text-foreground-muted">
+                      Гвг солдатів ще не призначено.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {presetSoldiers.map((item) => {
+                        const soldierData =
+                          item.demonSoldier ||
+                          demonSoldiers.find((s) => s.id === item.demonSoldierId);
+                        const rarityRing =
+                          RARITY_RING[soldierData?.rarity] || 'ring-gray-600';
 
-                       return (
-                         <li
-                           key={item.demonSoldierId}
-                           className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-base px-2 py-1.5 text-[11px]"
-                         >
-                           <div className="flex items-center gap-2 truncate">
-                             {/* Іконка солдата в списку доданих з рамкою рідкості */}
-                             <SoldierImage
-                               soldier={soldierData}
-                               className={`h-8 w-8 shrink-0 rounded-md ring-1 ${rarityRing}`}
-                               fallbackClassName="text-[10px]"
-                             />
+                        return (
+                          <li
+                            key={item.demonSoldierId}
+                            className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-base px-2 py-1.5 text-[11px]"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <SoldierImage
+                                soldier={soldierData}
+                                className={`h-8 w-8 shrink-0 rounded-md ring-1 ${rarityRing}`}
+                                fallbackClassName="text-[10px]"
+                              />
 
-                             <span className="truncate text-foreground-primary font-medium">
-                               {soldierData?.name || `Солдат #${item.demonSoldierId}`}
-                               <span className="ml-1 text-foreground-muted font-normal">
-                                 × {item.quantity}
-                               </span>
-                             </span>
-                           </div>
+                              <span className="truncate text-foreground-primary font-medium">
+                                {soldierData?.name || `Солдат #${item.demonSoldierId}`}
+                                <span className="ml-1 text-foreground-muted font-normal">
+                                  × {item.quantity}
+                                </span>
+                              </span>
+                            </div>
 
-                           <button
-                             type="button"
-                             onClick={() =>
-                               removePresetSoldier(item.demonSoldierId)
-                             }
-                             aria-label="Видалити солдата з пресету"
-                             title="Видалити солдата з пресету"
-                             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
-                           >
-                             ×
-                           </button>
-                         </li>
-                       );
-                     })}
-                   </ul>
-                 )}
-               </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removePresetSoldier(item.demonSoldierId)
+                              }
+                              aria-label="Видалити солдата з пресету"
+                              title="Видалити солдата з пресету"
+                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
 
                 <div className="flex gap-2 pt-0">
                   <button
@@ -1528,7 +1601,7 @@ export default function GvgPage() {
                     disabled={saving}
                     className={`${buttonPrimaryClass} flex-1`}
                   >
-                    {saving ? 'Збереження…' : 'Зберегти'}
+                    {saving ? 'Збереження…' : isEditingPreset ? 'Оновити пресет' : 'Зберегти'}
                   </button>
 
                   <button
@@ -1553,7 +1626,7 @@ export default function GvgPage() {
                   </span>
                 </div>
 
-                <div className="max-h-[104px] space-y-1 overflow-y-auto overscroll-contain pr-1">
+                <div className="max-h-[140px] space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {presets.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-surface-border px-3 py-4 text-center text-xs text-foreground-muted">
                       Збережених пресетів поки немає.
@@ -1562,26 +1635,42 @@ export default function GvgPage() {
                     presets.map((preset) => {
                       const isOpened =
                         openedPreset?.preset?.id === preset.id;
+                      const isDeleting = deletingPresetId === preset.id;
 
                       return (
-                        <button
+                        <div
                           key={preset.id}
-                          type="button"
-                          onClick={() => openPreset(preset.id)}
-                          aria-pressed={isOpened}
-                          className={`w-full rounded-lg border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                          className={`flex items-center justify-between gap-2 rounded-lg border p-2 transition-colors ${
                             isOpened
                               ? 'border-brand-accent bg-brand-accent/10'
                               : 'border-surface-border bg-surface-base hover:border-brand-accent/40 hover:bg-surface-sunken'
                           }`}
                         >
-                          <div className="font-mono text-xs font-bold text-brand-accent">
-                            {preset.presetCode}
-                          </div>
-                          <div className="mt-0.5 truncate text-[11px] text-foreground-secondary">
-                            {preset.name}
-                          </div>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => openPreset(preset.id)}
+                            aria-pressed={isOpened}
+                            className="min-w-0 flex-1 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-accent"
+                          >
+                            <div className="font-mono text-xs font-bold text-brand-accent">
+                              {preset.presetCode}
+                            </div>
+                            <div className="mt-0.5 truncate text-[11px] text-foreground-secondary">
+                              {preset.name}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => deletePreset(preset.id, preset.presetCode)}
+                            aria-label={`Видалити пресет ${preset.presetCode}`}
+                            title="Видалити пресет"
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-danger/30 bg-brand-danger/10 text-xs font-bold text-brand-danger-hover transition-colors hover:bg-brand-danger/20 disabled:opacity-50"
+                          >
+                            {isDeleting ? '…' : '×'}
+                          </button>
+                        </div>
                       );
                     })
                   )}
