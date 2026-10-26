@@ -6,9 +6,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface GvgPresetRepository extends JpaRepository<GvgPreset, Long> {
+public interface GvgPresetRepository
+        extends JpaRepository<GvgPreset, Long> {
 
-    List<GvgPreset> findByGuild_IdOrderByCreatedAtDesc(Long guildId);
+    List<GvgPreset> findByGuild_IdOrderByCreatedAtDesc(
+            Long guildId
+    );
 
     Optional<GvgPreset> findByIdAndGuild_Id(
             Long id,
@@ -18,5 +21,11 @@ public interface GvgPresetRepository extends JpaRepository<GvgPreset, Long> {
     boolean existsByGuild_IdAndPresetCode(
             Long guildId,
             String presetCode
+    );
+
+    // Отримати пресети конкретної гільдії для конкретної карти.
+    List<GvgPreset> findByGuild_IdAndMap_Id(
+            Long guildId,
+            Long mapId
     );
 }

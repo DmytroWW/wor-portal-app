@@ -1,14 +1,9 @@
 package com.wor_portal_app_backend.features.gvg.controller;
 
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetCreateRequest;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetDetailsResponse;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetHeroRequest;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetHeroResponse;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetResponse;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetSoldierRequest;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetSoldierResponse;
-import com.wor_portal_app_backend.features.gvg.dto.GvgPresetUpdateRequest;
+import com.wor_portal_app_backend.features.gvg.dto.*;
+import com.wor_portal_app_backend.features.gvg.service.GvgPresetSearchService;
 import com.wor_portal_app_backend.features.gvg.service.GvgPresetService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +16,7 @@ import java.util.List;
 public class GvgPresetController {
 
     private final GvgPresetService presetService;
+    private final GvgPresetSearchService presetSearchService;
 
     /*
      * =========================
@@ -72,6 +68,13 @@ public class GvgPresetController {
             @PathVariable Long presetId
     ) {
         presetService.deletePreset(presetId);
+    }
+
+    @PostMapping("/search")
+    public List<GvgPresetResponse> searchExactPresets(
+            @RequestBody GvgPresetSearchRequest request
+    ) {
+        return presetSearchService.searchExactPresets(request);
     }
 
     /*
