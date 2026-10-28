@@ -211,7 +211,7 @@ export default function GvgPage() {
   const [demonSoldiers, setDemonSoldiers] = useState([]);
   const [presetSoldiers, setPresetSoldiers] = useState([]);
   const [selectedDemonSoldierId, setSelectedDemonSoldierId] = useState('');
-  const [demonSoldierQuantity, setDemonSoldierQuantity] = useState(1);
+  const [demonSoldierLevel, setDemonSoldierLevel] = useState(1);
   const [isDemonSoldierDropdownOpen, setIsDemonSoldierDropdownOpen] = useState(false);
   const [demonSoldierSearchQuery, setDemonSoldierSearchQuery] = useState('');
 
@@ -458,32 +458,37 @@ export default function GvgPage() {
       return;
     }
 
-    const quantity = Math.max(1, Number(demonSoldierQuantity) || 1);
+    const level = Math.max(1, Number(demonSoldierLevel) || 1);
 
     setPresetSoldiers((current) => {
-      const existingIndex = current.findIndex((item) => item.demonSoldierId === soldier.id);
+      const existingIndex = current.findIndex(
+        (item) => String(item.soldierId) === String(soldier.id)
+      );
 
       if (existingIndex >= 0) {
         const updated = [...current];
         updated[existingIndex] = {
           ...updated[existingIndex],
-          quantity,
+          level,
+          demonSoldier: soldier,
         };
         return updated;
       }
 
-      return [...current, { demonSoldierId: soldier.id, quantity, demonSoldier: soldier }];
+      return [...current, { soldierId: soldier.id, level, demonSoldier: soldier }];
     });
 
     setSelectedDemonSoldierId('');
-    setDemonSoldierQuantity(1);
+    setDemonSoldierLevel(1);
     setDemonSoldierSearchQuery('');
     setIsDemonSoldierDropdownOpen(false);
     setNotice(`Гвг солдата «${soldier.name}» додано до пресету.`);
   };
 
-  const removePresetSoldier = (demonSoldierId) => {
-    setPresetSoldiers((current) => current.filter((item) => item.demonSoldierId !== demonSoldierId));
+  const removePresetSoldier = (soldierId) => {
+    setPresetSoldiers((current) =>
+      current.filter((item) => String(item.soldierId) !== String(soldierId))
+    );
   };
 
   const resetRecord = () => {
@@ -494,7 +499,7 @@ export default function GvgPage() {
     setDescription('');
     setPresetSoldiers([]);
     setSelectedDemonSoldierId('');
-    setDemonSoldierQuantity(1);
+    setDemonSoldierLevel(1);
     setDemonSoldierSearchQuery('');
     setIsDemonSoldierDropdownOpen(false);
     setOpenedPreset(null);
@@ -578,22 +583,29 @@ export default function GvgPage() {
           }
         }
 
-        const currentSoldierIds = new Set(presetSoldiers.map((item) => item.demonSoldierId));
-        const originalSoldierIdsSet = new Set(originalSoldierIds);
+        const currentSoldierIds = new Set(
+          presetSoldiers.map((item) => String(item.soldierId))
+        );
+        const originalSoldierIdsSet = new Set(originalSoldierIds.map(String));
 
-        const soldierIdsToRemove = originalSoldierIds.filter((id) => !currentSoldierIds.has(id));
-        for (const demonSoldierId of soldierIdsToRemove) {
-          await api.delete(`/gvg/presets/${presetId}/soldiers/${demonSoldierId}`);
+        const soldierIdsToRemove = originalSoldierIds.filter(
+          (id) => !currentSoldierIds.has(String(id))
+        );
+        for (const soldierId of soldierIdsToRemove) {
+          await api.delete(`/gvg/presets/${presetId}/soldiers/${soldierId}`);
         }
 
         for (const soldier of presetSoldiers) {
           const soldierData = {
-            demonSoldierId: soldier.demonSoldierId,
-            quantity: soldier.quantity,
+            soldierId: soldier.soldierId,
+            level: soldier.level,
           };
 
-          if (originalSoldierIdsSet.has(soldier.demonSoldierId)) {
-            await api.put(`/gvg/presets/${presetId}/soldiers/${soldier.demonSoldierId}`, soldierData);
+          if (originalSoldierIdsSet.has(String(soldier.soldierId))) {
+            await api.put(
+              `/gvg/presets/${presetId}/soldiers/${soldier.soldierId}`,
+              soldierData
+            );
           } else {
             await api.post(`/gvg/presets/${presetId}/soldiers`, soldierData);
           }
@@ -601,7 +613,7 @@ export default function GvgPage() {
 
         setNotice(`Журнал атаки «${preset.presetCode}» оновлено.`);
         setOriginalHeroIds(placements.map((placement) => placement.heroId));
-        setOriginalSoldierIds(presetSoldiers.map((item) => item.demonSoldierId));
+        setOriginalSoldierIds(presetSoldiers.map((item) => item.soldierId));
       } else {
         const presetResponse = await api.post('/gvg/presets', {
           mapId: map.id,
@@ -622,8 +634,8 @@ export default function GvgPage() {
 
         for (const soldier of presetSoldiers) {
           await api.post(`/gvg/presets/${preset.id}/soldiers`, {
-            demonSoldierId: soldier.demonSoldierId,
-            quantity: soldier.quantity,
+            soldierId: soldier.soldierId,
+            level: soldier.level,
           });
         }
 
@@ -688,18 +700,23 @@ export default function GvgPage() {
         const assigned = Array.isArray(soldiersResponse.data) ? soldiersResponse.data : [];
 
         const normalized = assigned.map((item) => {
-          const demonSoldierId = item.demonSoldierId ?? item.demonSoldier?.id;
+          const soldierId =
+            item.soldierId ?? item.demonSoldierId ?? item.soldier?.id ?? item.demonSoldier?.id;
+          const soldierData =
+            item.soldier ||
+            item.demonSoldier ||
+            demonSoldiers.find((soldier) => String(soldier.id) === String(soldierId)) ||
+            null;
 
           return {
-            demonSoldierId,
-            quantity: item.quantity ?? 1,
-            demonSoldier:
-              item.demonSoldier || demonSoldiers.find((soldier) => soldier.id === demonSoldierId) || null,
+            soldierId,
+            level: item.level ?? soldierData?.level ?? 1,
+            demonSoldier: soldierData,
           };
         });
 
         setPresetSoldiers(normalized);
-        setOriginalSoldierIds(normalized.map((item) => item.demonSoldierId));
+        setOriginalSoldierIds(normalized.map((item) => item.soldierId));
       } catch {
         setPresetSoldiers([]);
         setOriginalSoldierIds([]);
@@ -1371,7 +1388,7 @@ export default function GvgPage() {
                 {/* Призначення гвг солдатів пресету атаки */}
                 <div className="space-y-1.5 rounded-lg border border-surface-border bg-surface-sunken/40 p-2">
                   <label className="block font-medium text-foreground-secondary">
-                    Гвг солдати в пресеті
+                    Гвг солдати в пресеті · рівень
                   </label>
 
                   <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3.25rem_4rem] items-center gap-1.5">
@@ -1526,11 +1543,13 @@ export default function GvgPage() {
                     <input
                       type="number"
                       min={1}
-                      value={demonSoldierQuantity}
+                      value={demonSoldierLevel}
                       onChange={(event) =>
-                        setDemonSoldierQuantity(event.target.value)
+                        setDemonSoldierLevel(event.target.value)
                       }
-                      aria-label="Кількість солдатів"
+                      aria-label="Рівень солдата"
+                      title="Рівень солдата"
+                      placeholder="Рівень"
                       className={`${inputClass} h-11 w-full min-w-0 px-2 text-center`}
                     />
 
@@ -1552,13 +1571,13 @@ export default function GvgPage() {
                       {presetSoldiers.map((item) => {
                         const soldierData =
                           item.demonSoldier ||
-                          demonSoldiers.find((s) => s.id === item.demonSoldierId);
+                          demonSoldiers.find((s) => String(s.id) === String(item.soldierId));
                         const rarityRing =
                           RARITY_RING[soldierData?.rarity] || 'ring-gray-600';
 
                         return (
                           <li
-                            key={item.demonSoldierId}
+                            key={item.soldierId}
                             className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-base px-2 py-1.5 text-[11px]"
                           >
                             <div className="flex items-center gap-2 truncate">
@@ -1569,9 +1588,9 @@ export default function GvgPage() {
                               />
 
                               <span className="truncate text-foreground-primary font-medium">
-                                {soldierData?.name || `Солдат #${item.demonSoldierId}`}
+                                {soldierData?.name || `Солдат #${item.soldierId}`}
                                 <span className="ml-1 text-foreground-muted font-normal">
-                                  × {item.quantity}
+                                  · рівень {item.level}
                                 </span>
                               </span>
                             </div>
@@ -1579,7 +1598,7 @@ export default function GvgPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                removePresetSoldier(item.demonSoldierId)
+                                removePresetSoldier(item.soldierId)
                               }
                               aria-label="Видалити солдата з пресету"
                               title="Видалити солдата з пресету"

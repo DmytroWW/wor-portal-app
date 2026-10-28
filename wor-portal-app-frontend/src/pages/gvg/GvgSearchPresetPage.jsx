@@ -162,6 +162,14 @@ const buttonSecondaryClass =
 const buttonPrimaryClass =
   'inline-flex items-center justify-center gap-1 rounded-lg bg-brand-accent px-3 py-1.5 text-[10px] font-bold text-foreground-onAccent shadow-brand-accent transition-colors hover:bg-brand-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent disabled:cursor-not-allowed disabled:opacity-50';
 
+// Shared catalogue controls mirror the create-preset page exactly; sidebar controls
+// intentionally retain their compact search-specific sizing.
+const catalogInputClass =
+  'w-full rounded-lg border border-surface-border bg-surface-sunken px-3 py-2 text-sm text-foreground-primary outline-none transition-colors placeholder:text-foreground-muted/70 focus:border-brand-accent disabled:cursor-not-allowed disabled:opacity-50';
+
+const catalogArrowButtonClass =
+  'inline-flex items-center justify-center gap-1 rounded-lg border border-surface-border bg-surface-sunken px-3 py-2 text-xs font-semibold text-foreground-secondary transition-colors hover:border-brand-accent/50 hover:bg-surface-raised hover:text-foreground-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent disabled:cursor-not-allowed disabled:opacity-50';
+
 const readFavoriteHeroIds = () => {
   if (typeof window === 'undefined') return [];
 
@@ -245,11 +253,40 @@ const HeroPortrait = ({ hero, className = '' }) => {
   );
 };
 
+const DemonSoldierPortrait = ({ soldier, className = '' }) => {
+  const fallback = soldier?.name?.trim()?.charAt(0)?.toUpperCase() || 'S';
+
+  return (
+    <div className={`relative overflow-hidden bg-surface-overlay ${className}`}>
+      {soldier?.imageSlug ? (
+        <img
+          src={`/images/demon-soldiers/${soldier.imageSlug}.webp`}
+          alt={soldier.name || 'Демон-солдат'}
+          draggable="false"
+          className="h-full w-full select-none object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+            event.currentTarget.nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+      ) : null}
+
+      <div
+        className={`${soldier?.imageSlug ? 'hidden ' : ''}absolute inset-0 flex items-center justify-center bg-surface-sunken text-xs font-bold text-brand-accent`}
+        aria-hidden="true"
+      >
+        {fallback}
+      </div>
+    </div>
+  );
+};
+
 export default function GvgSearchPresetPage() {
   const [mapType, setMapType] = useState('TOWER');
   const [map, setMap] = useState(null);
   const [tiles, setTiles] = useState([]);
   const [heroes, setHeroes] = useState([]);
+  const [demonSoldiers, setDemonSoldiers] = useState([]);
 
   const [heroPlacements, setHeroPlacements] = useState({});
   const [selectedHeroId, setSelectedHeroId] = useState(null);
@@ -324,6 +361,25 @@ export default function GvgSearchPresetPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    const loadDemonSoldiers = async () => {
+      try {
+        const response = await api.get('/demon-soldiers');
+        if (active) setDemonSoldiers(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        if (active) setError(errorMessage(err));
+      }
+    };
+
+    loadDemonSoldiers();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const requestId = ++mapRequestRef.current;
     let active = true;
 
@@ -368,6 +424,11 @@ export default function GvgSearchPresetPage() {
   const heroesById = useMemo(
     () => new Map(heroes.map((hero) => [String(hero.id), hero])),
     [heroes]
+  );
+
+  const demonSoldiersById = useMemo(
+    () => new Map(demonSoldiers.map((soldier) => [String(soldier.id), soldier])),
+    [demonSoldiers]
   );
 
   const heroClasses = useMemo(
@@ -462,6 +523,7 @@ export default function GvgSearchPresetPage() {
   };
 
   const changeMapType = (type) => {
+    // Не дозволяємо залишити результати або перегляд з попереднього типу мапи.
     if (type === mapType && !isPreview) return;
 
     resetPlacements();
@@ -726,10 +788,10 @@ export default function GvgSearchPresetPage() {
         <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
 
           {/* MAP */}
-          <section className="relative order-1 flex min-w-0 flex-col justify-center border-b border-surface-border bg-surface-base p-2 pb-2 pt-12 lg:col-start-1 lg:row-start-1 lg:border-b-0 lg:border-r">
+          <section className="relative flex min-w-0 flex-col justify-center border-b border-surface-border bg-surface-base p-2 pb-2 pt-12 lg:col-start-1 lg:row-start-1 lg:border-b-0 lg:border-r">
             <div className="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 bg-gradient-to-b from-surface-raised/95 to-transparent p-3">
               <div className="min-w-0">
-                <h1 className="truncate text-sm font-bold tracking-wide">
+                <h1 className="truncate text-sm font-bold tracking-wide text-foreground-primary">
                   {isPreview
                     ? openedPreset?.preset?.name || openedPreset?.preset?.presetCode
                     : `Enemy Defense Setup — ${map?.name || mapType}`}
@@ -810,11 +872,12 @@ export default function GvgSearchPresetPage() {
                             key={`${x}-${y}`}
                             className={`relative flex h-full w-full items-center justify-center rounded-sm border transition-colors ${
                               placement
-                                ? 'z-10 border-surface-border/80 bg-surface-base/40 shadow-sm'
+                                ? 'z-10 border border-surface-border/80 bg-surface-base/40 shadow-sm'
                                 : isAvailableTarget
-                                ? 'z-10 animate-pulse border-brand-success/80 bg-brand-success/20 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                                : 'border-surface-border/70 bg-surface-overlay/20'
+                                  ? 'z-10 animate-pulse border-brand-success/80 bg-brand-success/20 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                  : 'border-surface-border/70 bg-surface-overlay/20 hover:border-brand-accent/60 hover:bg-brand-accent/20'
                             }`}
+                            title={`X: ${x}, Y: ${y} · ${tile.tileType}`}
                           >
                             {!placement && !isPreview && (
                               <button
@@ -836,7 +899,7 @@ export default function GvgSearchPresetPage() {
                                     />
                                     <span
                                       aria-hidden="true"
-                                      className={`pointer-events-none absolute gvg-map-node-arrow flex items-center justify-center rounded-full border border-surface-border bg-surface-raised/95 font-black leading-none text-brand-accent shadow-md ${direction.position}`}
+                                      className={`pointer-events-none absolute gvg-map-node-arrow flex items-center justify-center rounded-full border border-surface-border bg-surface-raised/95 font-black leading-none text-brand-accent shadow-md transition-transform duration-150 ease-in-out ${direction.position}`}
                                       style={{ transform: `rotate(${direction.angle}deg)` }}
                                     >
                                       ↑
@@ -857,7 +920,7 @@ export default function GvgSearchPresetPage() {
 
                                     <span
                                       aria-hidden="true"
-                                      className={`pointer-events-none absolute gvg-map-node-arrow flex items-center justify-center rounded-full border border-surface-border bg-surface-raised/95 font-black leading-none text-brand-accent shadow-md ${direction.position}`}
+                                      className={`pointer-events-none absolute gvg-map-node-arrow flex items-center justify-center rounded-full border border-surface-border bg-surface-raised/95 font-black leading-none text-brand-accent shadow-md transition-transform duration-150 ease-in-out ${direction.position}`}
                                       style={{ transform: `rotate(${direction.angle}deg)` }}
                                     >
                                       ↑
@@ -866,7 +929,7 @@ export default function GvgSearchPresetPage() {
                                 )}
 
                                 <span
-                                  className="pointer-events-none absolute -top-3 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded border border-surface-border bg-surface-sunken/95 px-1 font-bold text-foreground-primary shadow-surface"
+                                  className="pointer-events-none absolute -top-3 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded border border-surface-border bg-surface-sunken/95 font-bold text-foreground-primary shadow-surface px-1"
                                   style={{ fontSize: 'calc(7px * var(--gvg-font-scale))' }}
                                 >
                                   {hero?.name || 'Hero'}
@@ -878,7 +941,7 @@ export default function GvgSearchPresetPage() {
                                     onClick={() => removeHeroFromMap(placement.heroId)}
                                     aria-label={`Прибрати ${hero?.name || 'героя'} з мапи`}
                                     title="Прибрати героя"
-                                    className="gvg-map-node-close absolute -right-1 -top-1 z-40 flex cursor-pointer items-center justify-center rounded-full border border-surface-border bg-surface-sunken font-black leading-none text-foreground-secondary shadow-md transition hover:scale-110 hover:bg-brand-danger hover:text-white"
+                                    className="absolute -right-1 -top-1 z-40 flex gvg-map-node-close cursor-pointer items-center justify-center rounded-full border border-surface-border bg-surface-sunken font-black leading-none text-foreground-secondary shadow-md transition hover:scale-110 hover:bg-brand-danger hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-danger"
                                   >
                                     ×
                                   </button>
@@ -907,9 +970,9 @@ export default function GvgSearchPresetPage() {
             </p>
           </section>
 
-          {/* HERO CATALOG */}
-          <section className="order-2 min-w-0 border-t border-surface-border bg-surface-raised p-2 lg:col-span-2 lg:row-start-2">
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {/* HERO CATALOG — same presentation as the create-preset page */}
+          <section className="min-w-0 border-t border-surface-border bg-surface-raised p-2 lg:col-span-2 lg:row-start-2">
+            <div className="mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
                   Каталог героїв
@@ -920,28 +983,30 @@ export default function GvgSearchPresetPage() {
                 </span>
 
                 {selectedHeroId && !isPreview && (
-                  <span className="rounded-full border border-brand-success/30 bg-brand-success/10 px-2 py-0.5 text-[10px] font-semibold text-brand-success-hover">
-                    Герой вибраний
+                  <span className="rounded-full border border-brand-success/30 bg-brand-success/10 px-2 py-1 text-[10px] font-semibold text-brand-success-hover">
+                    Герой вибраний для пошуку
                   </span>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <div className="relative w-full sm:w-36">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative w-full sm:w-40">
                   <input
                     type="text"
                     value={heroSearchQuery}
                     onChange={(event) => setHeroSearchQuery(event.target.value)}
-                    placeholder="Пошук героя…"
-                    className={`${inputClass} pr-7`}
+                    placeholder="Пошук героя..."
+                    aria-label="Пошук героя"
+                    className={`${catalogInputClass} py-1.5 pr-8 text-xs`}
                   />
 
                   {(heroSearchQuery || classFilter !== 'ALL') && (
                     <button
                       type="button"
                       onClick={clearHeroFilters}
-                      aria-label="Очистити фільтри"
-                      className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-sm font-bold text-brand-danger hover:bg-brand-danger/10"
+                      aria-label="Скинути пошук та фільтри"
+                      title="Скинути пошук та фільтри"
+                      className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-sm font-bold text-brand-danger transition-colors hover:bg-brand-danger/10 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
                     >
                       ×
                     </button>
@@ -952,7 +1017,7 @@ export default function GvgSearchPresetPage() {
                   value={classFilter}
                   onChange={(event) => setClassFilter(event.target.value)}
                   aria-label="Фільтр за класом"
-                  className={`${inputClass} w-auto`}
+                  className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
                 >
                   <option value="ALL">Усі класи</option>
                   {heroClasses.map((heroClass) => (
@@ -966,116 +1031,156 @@ export default function GvgSearchPresetPage() {
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value)}
                   aria-label="Сортування героїв"
-                  className={`${inputClass} w-auto`}
+                  className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs text-foreground-primary outline-none transition-colors focus:border-brand-accent"
                 >
                   <option value="NAME">За ім'ям</option>
                   <option value="CLASS">За класом</option>
                 </select>
 
-                <button
-                  type="button"
-                  onClick={() => scrollHeroList(-1)}
-                  aria-label="Прокрутити ліворуч"
-                  className={buttonSecondaryClass}
-                >
-                  ←
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scrollHeroList(-1)}
+                    aria-label="Прокрутити каталог ліворуч"
+                    title="Ліворуч"
+                    className={catalogArrowButtonClass}
+                  >
+                    ←
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => scrollHeroList(1)}
-                  aria-label="Прокрутити праворуч"
-                  className={buttonSecondaryClass}
-                >
-                  →
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollHeroList(1)}
+                    aria-label="Прокрутити каталог праворуч"
+                    title="Праворуч"
+                    className={catalogArrowButtonClass}
+                  >
+                    →
+                  </button>
+                </div>
               </div>
             </div>
 
             {loadingHeroes ? (
-              <div className="p-4 text-center text-xs text-foreground-muted">
+              <div className="rounded-xl border border-dashed border-surface-border bg-surface-base p-6 text-center text-xs text-foreground-muted">
                 Завантаження героїв…
               </div>
             ) : visibleHeroes.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-surface-border p-4 text-center text-xs text-foreground-muted">
-                Героїв не знайдено.
+              <div className="rounded-xl border border-dashed border-surface-border bg-surface-base p-6 text-center text-xs text-foreground-muted">
+                Героїв за вибраними фільтрами не знайдено.
               </div>
             ) : (
               <div
                 ref={heroListRef}
-                className="flex gap-2 overflow-x-auto overscroll-x-contain pb-2"
+                className="flex gap-2.5 overflow-x-auto pb-2"
               >
                 {visibleHeroes.map((hero) => {
-                  const selected = String(selectedHeroId) === String(hero.id);
-                  const placement = heroPlacements[hero.id];
-                  const favorite = favoriteHeroIds.includes(String(hero.id));
+                  const isSelected = String(selectedHeroId) === String(hero.id);
+                  const placement = displayedPlacements.find(
+                    (item) => String(item.heroId) === String(hero.id)
+                  );
+                  const isFavorite = favoriteHeroIds.includes(String(hero.id));
+                  const rarityRing = getRarityRing(hero.rarity);
+                  const fallback = hero.name?.trim()?.charAt(0)?.toUpperCase() || '?';
 
                   return (
                     <div
                       key={hero.id}
-                      className={`group relative w-[76px] flex-shrink-0 rounded-lg border p-1.5 transition-colors ${
-                        selected && !isPreview
-                          ? 'border-brand-accent bg-brand-accent/10'
+                      onClick={() => selectHero(hero)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.target === event.currentTarget &&
+                          (event.key === 'Enter' || event.key === ' ')
+                        ) {
+                          event.preventDefault();
+                          selectHero(hero);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      title={
+                        placement
+                          ? `${hero.name} — (${placement.x}, ${placement.y})`
+                          : `Вибрати ${hero.name}`
+                      }
+                      className={`group relative w-24 flex-shrink-0 cursor-pointer select-none rounded-xl border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                        isSelected && !isPreview
+                          ? 'border-brand-accent bg-brand-accent/10 shadow-brand-accent'
                           : placement
-                          ? 'border-brand-success/50 bg-brand-success/5'
-                          : 'border-surface-border bg-surface-base hover:border-brand-accent/40'
+                            ? 'border-brand-success/50 bg-brand-success/5'
+                            : 'border-surface-border bg-surface-base hover:border-brand-accent/50 hover:bg-surface-sunken'
                       }`}
                     >
-                      <button
-                        type="button"
-                        disabled={isPreview}
-                        onClick={() => selectHero(hero)}
-                        aria-pressed={selected}
-                        className="block w-full text-center disabled:cursor-default"
-                      >
-                        <div
-                          className={`relative mx-auto h-12 w-12 rounded-md ring-2 ${getRarityRing(
-                            hero.rarity
-                          )}`}
-                        >
-                          <HeroPortrait hero={hero} className="h-full w-full rounded-md" />
+                      <div className="relative mx-auto h-14 w-14 rounded-lg bg-surface-overlay">
+                        {hero.imageSlug ? (
+                          <img
+                            src={`/images/heroes/${hero.imageSlug}.png`}
+                            alt={hero.name}
+                            draggable="false"
+                            className={`h-full w-full rounded-lg object-cover ring-2 ${rarityRing}`}
+                            onError={(event) => {
+                              event.currentTarget.style.display = 'none';
+                              event.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
 
-                          {placement && (
-                            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-surface-raised bg-brand-success text-[9px] font-bold text-white">
-                              ✓
-                            </span>
-                          )}
+                        <div
+                          className={`${hero.imageSlug ? 'hidden ' : ''}absolute inset-0 flex items-center justify-center rounded-lg bg-surface-sunken text-sm font-bold text-brand-accent ring-2 ${rarityRing}`}
+                          aria-hidden="true"
+                        >
+                          {fallback}
                         </div>
 
-                        <p className="mt-1.5 truncate text-[9px] font-bold">
-                          {hero.name}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={(event) => toggleFavoriteHero(hero.id, event)}
+                          aria-label={isFavorite ? 'Прибрати з обраних' : 'Додати в обрані'}
+                          title={isFavorite ? 'В обраних' : 'Додати в обрані'}
+                          className={`absolute -left-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-surface-raised transition-transform hover:scale-110 ${
+                            isFavorite
+                              ? 'bg-amber-400 text-black font-black'
+                              : 'bg-surface-sunken/80 text-foreground-muted hover:text-amber-400'
+                          }`}
+                        >
+                          ★
+                        </button>
 
-                        <p className="truncate text-[8px] text-foreground-muted">
-                          {hero.className || 'Hero'}
-                        </p>
-                      </button>
+                        {placement && (
+                          <span
+                            className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-surface-raised bg-brand-success text-[9px] font-bold text-white shadow-sm"
+                            aria-label="Героя розміщено"
+                            title="Героя використано в розстановці"
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={(event) => toggleFavoriteHero(hero.id, event)}
-                        aria-label={favorite ? 'Прибрати з обраних' : 'Додати в обрані'}
-                        title={favorite ? 'В обраних' : 'Додати в обрані'}
-                        className={`absolute left-0 top-0 flex h-4 w-4 items-center justify-center rounded-full border border-surface-raised text-[10px] transition-transform hover:scale-110 ${
-                          favorite
-                            ? 'bg-amber-400 font-black text-black'
-                            : 'bg-surface-sunken text-foreground-muted hover:text-amber-400'
-                        }`}
-                      >
-                        ★
-                      </button>
+                      <p className="mt-2 truncate text-center text-[10px] font-bold text-foreground-primary">
+                        {hero.name}
+                      </p>
+
+                      <p className="truncate text-center text-[9px] text-foreground-muted">
+                        {hero.className || 'Hero'}
+                      </p>
 
                       {placement && !isPreview && (
-                        <div className="mt-1 flex items-center justify-between border-t border-surface-border pt-1">
-                          <span className="font-mono text-[8px] text-brand-success-hover">
+                        <div className="mt-2 flex items-center justify-between gap-1 border-t border-surface-border pt-1.5">
+                          <span className="font-mono text-[9px] text-brand-success-hover">
                             ({placement.x},{placement.y})
                           </span>
 
                           <button
                             type="button"
-                            onClick={() => removeHeroFromMap(hero.id)}
-                            aria-label={`Прибрати ${hero.name}`}
-                            className="flex h-4 w-4 items-center justify-center rounded text-xs font-bold text-brand-danger hover:bg-brand-danger/10"
+                            aria-label={`Прибрати ${hero.name} з мапи`}
+                            title="Прибрати героя з мапи"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeHeroFromMap(hero.id);
+                            }}
+                            className="flex h-5 w-5 items-center justify-center rounded-md text-xs font-black text-brand-danger transition-colors hover:bg-brand-danger/15 hover:text-brand-danger-hover focus-visible:outline-2 focus-visible:outline-brand-danger"
                           >
                             ×
                           </button>
@@ -1086,31 +1191,64 @@ export default function GvgSearchPresetPage() {
                 })}
               </div>
             )}
+
+            {/* Legend mirrors the create-preset page */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-surface-border pt-3 text-[10px] text-foreground-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm border border-brand-accent bg-brand-accent/20" />
+                Вибраний герой
+              </span>
+
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm border border-brand-success bg-brand-success/20" />
+                Героя розміщено
+              </span>
+
+              <span className="flex items-center gap-1.5">
+                <span className="text-amber-400 font-bold">★</span>
+                Обраний герой (завжди зверху)
+              </span>
+
+              <span className="flex items-center gap-1.5">
+                <span className="flex h-3 w-3 items-center justify-center rounded-full bg-brand-danger text-[9px] font-bold text-white">
+                  ×
+                </span>
+                Прибрати героя з мапи
+              </span>
+            </div>
           </section>
 
           {/* SIDEBAR */}
-          <aside className="order-3 flex min-w-0 flex-col gap-2 bg-surface-raised p-2 lg:col-start-2 lg:row-start-1">
+          <aside className="flex min-w-0 flex-col gap-2 bg-surface-raised p-2 lg:col-start-2 lg:row-start-1">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-2">
               <h2 className="text-xs font-bold uppercase tracking-wider text-brand-accent">
                 Керування розстановкою
               </h2>
 
-              <div className="flex gap-1">
-                {MAP_TYPES.map((type) => (
-                  <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => changeMapType(type.value)}
-                    aria-pressed={displayedMapType === type.value}
-                    className={`rounded-md border px-2 py-1 text-[9px] font-bold uppercase transition-colors ${
-                      displayedMapType === type.value
-                        ? 'border-brand-accent bg-brand-accent text-foreground-onAccent'
-                        : 'border-surface-border bg-surface-sunken text-foreground-secondary hover:border-brand-accent/50'
-                    }`}
-                  >
-                    {type.label}
-                  </button>
-                ))}
+              {/* Той самий перемикач FORT / TOWER, що й на сторінці створення пресету.
+                  mapType — це саме режим пошуку; перемикання очищає розстановку
+                  та старі результати й завантажує активну мапу вибраного типу. */}
+              <div className="flex items-center gap-1">
+                {MAP_TYPES.map((type) => {
+                  const isActive = mapType === type.value;
+
+                  return (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => changeMapType(type.value)}
+                      aria-pressed={isActive}
+                      title={`Шукати розстановки для ${type.label}`}
+                      className={`rounded-lg border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent ${
+                        isActive
+                          ? 'border-brand-accent bg-brand-accent text-foreground-onAccent'
+                          : 'border-surface-border bg-surface-sunken text-foreground-secondary hover:border-brand-accent/50 hover:text-foreground-primary'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -1226,8 +1364,30 @@ export default function GvgSearchPresetPage() {
                   const details = resultDetails[String(preset.id)];
                   const isOpened = String(openedPreset?.preset?.id) === String(preset.id);
 
-                  const presetHeroes = (details?.heroes || [])
-                    .map((placement) => heroesById.get(String(placement.heroId)))
+                  const presetDemonSoldiers = (details?.soldiers || [])
+                    .map((assignment) => {
+                      const soldierId =
+                        assignment.soldierId ??
+                        assignment.demonSoldierId ??
+                        assignment.soldier?.id ??
+                        assignment.demonSoldier?.id;
+                      const soldier =
+                        demonSoldiersById.get(String(soldierId)) ||
+                        assignment.soldier ||
+                        assignment.demonSoldier ||
+                        null;
+
+                      if (!soldier && soldierId == null) return null;
+
+                      return {
+                        ...(soldier || {}),
+                        id: soldier?.id ?? soldierId,
+                        name: soldier?.name || assignment.soldierName || assignment.name || `Солдат #${soldierId}`,
+                        rarity: soldier?.rarity || assignment.rarity,
+                        imageSlug: soldier?.imageSlug || assignment.imageSlug,
+                        assignedLevel: assignment.level ?? soldier?.level ?? 1,
+                      };
+                    })
                     .filter(Boolean);
 
                   return (
@@ -1269,20 +1429,26 @@ export default function GvgSearchPresetPage() {
                         </p>
                       )}
 
-                      <div className="flex items-center gap-1 px-2 pb-2 pt-1.5">
-                        {presetHeroes.length > 0 ? (
-                          presetHeroes.slice(0, MAX_HEROES).map((hero) => (
+                      <div className="flex flex-wrap items-center gap-1 px-2 pb-2 pt-1.5">
+                        {presetDemonSoldiers.length > 0 ? (
+                          presetDemonSoldiers.map((soldier, index) => (
                             <div
-                              key={hero.id}
-                              title={hero.name}
-                              className={`h-8 w-8 shrink-0 rounded-md ring-1 ${getRarityRing(hero.rarity)}`}
+                              key={`${soldier.id}-${index}`}
+                              title={`${soldier.name} · рівень ${soldier.assignedLevel}`}
+                              className={`relative h-8 w-8 shrink-0 rounded-md ring-1 ${getRarityRing(soldier.rarity)}`}
                             >
-                              <HeroPortrait hero={hero} className="h-full w-full rounded-md" />
+                              <DemonSoldierPortrait
+                                soldier={soldier}
+                                className="h-full w-full rounded-md"
+                              />
+                              <span className="absolute -bottom-0.5 -right-0.5 rounded bg-surface-base/95 px-0.5 text-[7px] font-bold leading-tight text-foreground-primary ring-1 ring-surface-border">
+                                {soldier.assignedLevel}
+                              </span>
                             </div>
                           ))
                         ) : (
                           <span className="text-[9px] text-foreground-muted">
-                            {details ? 'Герої не знайдені' : 'Завантаження складу…'}
+                            {details ? 'Демони-солдати не призначені' : 'Завантаження складу…'}
                           </span>
                         )}
                       </div>

@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import GvGCreatePresetPage from './GvGCreatePresetPage';
 import GvGSearchPresetPage from './GvGSearchPresetPage';
+import GvGBattlePage from './GvGBattlePage';
 
 export default function GvGPage() {
-  const [currentView, setCurrentView] = useState('hub'); // 'hub' | 'search' | 'create'
+  const [currentView, setCurrentView] = useState('hub'); // 'hub' | 'search' | 'create' | 'battle'
+
+  // Перехід на сторінку поточної битви GvG
+  if (currentView === 'battle') {
+    return <GvGBattlePage onBack={() => setCurrentView('hub')} />;
+  }
 
   // Перехід на сторінку пошуку пресетів
   if (currentView === 'search') {
@@ -16,7 +22,7 @@ export default function GvGPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 animate-enter">
+    <div className="mx-auto w-full space-y-6 animate-enter">
       {/* HEADER SECTION */}
       <div className="mb-6">
         <h2 className="section-title text-2xl md:text-3xl">
@@ -29,28 +35,31 @@ export default function GvGPage() {
 
       {/* CARDS GRID */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        {/* 1. Поточна битва GvG (заглушка) */}
-        <div className="card flex flex-col justify-between p-6 opacity-75">
+        {/* 1. Поточна битва GvG */}
+        <button
+          type="button"
+          onClick={() => setCurrentView('battle')}
+          className="card group flex flex-col justify-between border-amber-500/40 bg-gradient-to-br from-surface-raised via-amber-500/10 to-surface-raised p-6 text-left transition-all duration-200 hover:-translate-y-1 hover:border-amber-500 hover:shadow-[0_10px_20px_-3px_rgb(245,158,11/0.3)]"
+        >
           <div>
-            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-surface-border bg-surface-sunken text-xl text-foreground-muted">
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-amber-500/40 bg-amber-500/20 text-2xl text-amber-400 transition-transform duration-200 group-hover:scale-110">
               🛡️
             </div>
 
-            <h3 className="text-lg font-bold text-foreground-primary">
+            <h3 className="text-lg font-bold text-amber-400">
               Поточна битва GvG
             </h3>
 
-            <p className="mt-2 text-sm text-foreground-muted">
-              Це кнопка-заглушка. Перегляд поточної битви тимчасово недоступний.
+            <p className="mt-2 text-sm text-foreground-secondary">
+              Керування раундами, вежами, фортами та статусами пробиття гільдії.
             </p>
           </div>
 
-          <div className="mt-6">
-            <span className="chip chip-neutral">
-              Тимчасово недоступно
-            </span>
+          <div className="mt-6 flex items-center text-sm font-semibold text-amber-400">
+            <span>Відкрити битву гільдії</span>
+            <span className="ml-2 transition-transform duration-200 group-hover:translate-x-1.5">→</span>
           </div>
-        </div>
+        </button>
 
         {/* 2. Знайти пресет */}
         <button
