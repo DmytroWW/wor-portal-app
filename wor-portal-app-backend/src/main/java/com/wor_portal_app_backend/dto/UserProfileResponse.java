@@ -12,6 +12,12 @@ import lombok.NoArgsConstructor;
 public class UserProfileResponse {
     private Long id;
     private String username;
+
+    /** Kept as `role` for existing frontend compatibility; now means platform role. */
     private String role;
+
     private String guildName;
+    private Long guildId;
+    private String guildRole;
+    private String inviteCode;
 }

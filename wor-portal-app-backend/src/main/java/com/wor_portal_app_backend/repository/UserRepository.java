@@ -2,10 +2,14 @@ package com.wor_portal_app_backend.repository;
 
 import com.wor_portal_app_backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     boolean existsByUsername(String username);
-    long countByGuildId(Long guildId);
+    long countByGuildId(Long guildId); // legacy method kept for compatibility
+    long countByGuild_Id(Long guildId);
+    List<User> findAllByGuild_IdOrderByIdAsc(Long guildId);
 }

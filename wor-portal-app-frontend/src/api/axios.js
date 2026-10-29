@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// In development Vite proxies /api to localhost:8080. In production set
+// VITE_API_BASE_URL if the API is hosted on a different base path/domain.
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
 });
 
 api.interceptors.request.use(
@@ -12,7 +14,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 export default api;

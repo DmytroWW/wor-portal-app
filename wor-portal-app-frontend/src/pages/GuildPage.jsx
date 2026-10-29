@@ -1,307 +1,368 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import api from '../api/axios';
 
-/**
- * ==============================================================================
- * COMPONENT: GuildPage
- * ==============================================================================
- * Manages the guild interface acting as a conditional view switcher:
- * 1. If the user belongs to a guild -> Displays the guild header and member roster.
- * 2. If the user does not belong to a guild -> Displays the join-by-code form
- *    (and create guild option if the user has ADMIN privileges).
- */
-export default function GuildPage({ user }) {
+const roleLabel = (role) => ({
+  LEADER: 'Лідер',
+  OFFICER: 'Офіцер',
+  MEMBER: 'Учасник',
+}[role] || 'Учасник');
 
- // ==========================================
- // 1. COMPONENT STATE
- // ==========================================
+const getErrorMessage = (error, fallback) =>
+  error?.response?.data?.message
+  || error?.response?.data?.detail
+  || error?.response?.data?.error
+  || fallback;
 
- // Tab switcher for non-guild view ('join' or 'create')
-  const [guildFormTab, setGuildFormTab] = useState('join');
+const inputClass = 'mt-2 w-full rounded-lg border border-surface-border bg-surface-sunken px-3 py-2.5 text-sm text-foreground-primary outline-none placeholder:text-foreground-muted focus:border-brand-accent';
+const primaryButtonClass = 'inline-flex items-center justify-center rounded-lg bg-brand-accent px-4 py-2.5 text-sm font-bold text-foreground-onAccent transition hover:bg-brand-accent-hover disabled:cursor-not-allowed disabled:opacity-50';
+const secondaryButtonClass = 'inline-flex items-center justify-center rounded-lg border border-surface-border bg-surface-sunken px-3 py-2 text-sm font-semibold text-foreground-secondary transition hover:border-brand-accent/50 hover:text-foreground-primary disabled:cursor-not-allowed disabled:opacity-50';
 
-  // Form input states
+export default function GuildPage({ user, onRefreshUser }) {
+  const [formTab, setFormTab] = useState('join');
   const [inviteCode, setInviteCode] = useState('');
   const [guildName, setGuildName] = useState('');
-
-  // Status, error handling, and loading indicators for form submissions
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Guild members list state and loading indicator
   const [members, setMembers] = useState([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // ==========================================
-  // 2. USER ROLE CHECKS
-  // ==========================================
-  const isAdmin = user?.role === 'ADMIN';
-  const isManagementAllowed = ['LEADER', 'ADMIN'].includes(user?.role);
+  const hasGuild = Boolean(user?.guildId || user?.guildName);
+  const isGuildLeader = user?.guildRole === 'LEADER';
 
-  // ==========================================
-  // 3. AUTO-FETCH MEMBERS ROSTER EFFECT
-  // ==========================================
-  // Triggers whenever the user's guild name changes. If they are in a guild,
-  // automatically fetch the members list.
-  useEffect(() => {
-    if (user?.guildName) {
-      fetchGuildMembers();
+  const fetchGuildMembers = useCallback(async () => {
+    if (!user?.guildId && !user?.guildName) {
+      setMembers([]);
+      return;
     }
-  }, [user?.guildName]);
 
-// ==========================================
-// 4. API REQUEST HANDLERS
-// ==========================================
-
-// Fetch the roster of members for the current guild
-  const fetchGuildMembers = async () => {
     setLoadingMembers(true);
     try {
       const response = await api.get('/guilds/members');
-      setMembers(response.data);
-    } catch (err) {
-      console.error('Failed to load guild members:', err);
+      setMembers(Array.isArray(response.data) ? response.data : []);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося завантажити список учасників.'));
     } finally {
       setLoadingMembers(false);
     }
+  }, [user?.guildId, user?.guildName]);
+
+  useEffect(() => {
+    fetchGuildMembers();
+  }, [fetchGuildMembers]);
+
+  const refreshProfile = async () => {
+    if (onRefreshUser) {
+      await onRefreshUser();
+    } else {
+      window.location.reload();
+    }
   };
 
-// Handle joining a guild using an invite code
-  const handleJoinGuild = async (e) => {
-    e.preventDefault();
+  const handleJoinGuild = async (event) => {
+    event.preventDefault();
     setError('');
-    setSuccessMsg('');
-    setLoading(true);
+    setSuccessMessage('');
 
+    const code = inviteCode.trim().toUpperCase();
+    if (!code) {
+      setError('Введи інвайт-код гільдії.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await api.post(`/guilds/join?inviteCode=${encodeURIComponent(inviteCode)}`);
-      setSuccessMsg('Successfully joined the guild!');
-      window.location.reload();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to join. Please check your invite code.');
+      const response = await api.post(`/guilds/join?inviteCode=${encodeURIComponent(code)}`);
+      await refreshProfile();
+      setInviteCode('');
+      setSuccessMessage(`Ти приєднався до гільдії «${response.data?.name || 'гільдія'}».`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося приєднатися. Перевір інвайт-код.'));
     } finally {
       setLoading(false);
     }
   };
 
-// Handle creating a new guild (Admin exclusive)
-  const handleCreateGuild = async (e) => {
-    e.preventDefault();
+  const handleCreateGuild = async (event) => {
+    event.preventDefault();
     setError('');
-    setSuccessMsg('');
-    setLoading(true);
+    setSuccessMessage('');
 
+    const name = guildName.trim();
+    if (!name || name.length > 100) {
+      setError('Назва гільдії має містити від 1 до 100 символів.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await api.post('/guilds/create', { name: guildName });
-      setSuccessMsg('Guild created successfully!');
-      window.location.reload();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create guild.');
+      const response = await api.post('/guilds/create', { name });
+      await refreshProfile();
+      setGuildName('');
+      setSuccessMessage(`Гільдію «${response.data?.name || name}» створено. Ти став її лідером.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося створити гільдію.'));
     } finally {
       setLoading(false);
     }
   };
-// Change a member's role (e.g., promote to Officer or demote to Member)
-  const handleChangeRole = async (memberId, newRole) => {
-    try {
-      await api.patch(`/guilds/members/${memberId}/role`, { role: newRole });
-      fetchGuildMembers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update member role.');
-    }
-  };
-// Kick a member from the guild with confirmation prompt
-  const handleKickMember = async (memberId, username) => {
-    if (!window.confirm(`Are you sure you want to kick ${username} from the guild?`)) return;
 
+  const handleCopyInviteCode = async () => {
+    if (!user?.inviteCode) return;
+    setError('');
     try {
-      await api.delete(`/guilds/members/${memberId}`);
-      fetchGuildMembers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to kick member.');
+      await navigator.clipboard.writeText(user.inviteCode);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError('Не вдалося автоматично скопіювати код. Виділи його та скопіюй вручну.');
     }
   };
 
-  // ==========================================
-  // 5. RENDER VIEW A: User IS in a Guild
-  // ==========================================
+  const handleRotateInviteCode = async () => {
+    if (!window.confirm('Створити новий інвайт-код? Старий код перестане працювати.')) return;
+    setError('');
+    setSuccessMessage('');
+    setLoading(true);
+    try {
+      const response = await api.put('/guilds/invite-code');
+      await refreshProfile();
+      setSuccessMessage(`Новий код гільдії: ${response.data?.inviteCode || 'оновлено'}`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося оновити інвайт-код.'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (user?.guildName) {
-    return (
-      <div className="space-y-6 max-w-5xl mx-auto">
-        {/* Guild Header */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-amber-400">{user.guildName}</h2>
-            <p className="text-slate-400 text-sm mt-1">
-              Invite Code: <code className="bg-slate-950 px-2.5 py-1 rounded text-amber-300 border border-slate-800 font-mono">{user.inviteCode || 'N/A'}</code>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="bg-purple-900/40 text-purple-300 border border-purple-500/40 px-3 py-1.5 rounded-lg text-sm font-semibold">
-              Your Role: <span className="text-amber-300">{user.role}</span>
-            </span>
-          </div>
-        </div>
+  const handleChangeRole = async (memberId, role) => {
+    setError('');
+    setSuccessMessage('');
+    try {
+      await api.patch(`/guilds/members/${memberId}/role`, { role });
+      await fetchGuildMembers();
+      setSuccessMessage('Ранг учасника оновлено.');
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося змінити ранг учасника.'));
+    }
+  };
 
-        {/* Members Roster */}
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-lg text-purple-200">Guild Roster ({members.length})</h3>
-            {loadingMembers && <span className="text-xs text-slate-400 animate-pulse">Updating...</span>}
-          </div>
+  const handleKickMember = async (member) => {
+    if (!window.confirm(`Виключити ${member.username} з гільдії?`)) return;
+    setError('');
+    setSuccessMessage('');
+    try {
+      await api.delete(`/guilds/members/${member.id}`);
+      await fetchGuildMembers();
+      setSuccessMessage(`Учасника ${member.username} виключено з гільдії.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося виключити учасника.'));
+    }
+  };
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950/60 text-xs uppercase text-slate-400 border-b border-slate-800">
-                <tr>
-                  <th className="py-3 px-4">Username</th>
-                  <th className="py-3 px-4">Role</th>
-                  {isManagementAllowed && <th className="py-3 px-4 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {members.map((member) => (
-                  <tr key={member.id} className="hover:bg-slate-800/30 transition">
-                    <td className="py-3 px-4 font-semibold text-slate-200 flex items-center gap-2">
-                      <div className="w-7 h-7 rounded bg-purple-950 border border-purple-500/30 flex items-center justify-center text-xs text-purple-300">
-                        {member.username?.charAt(0).toUpperCase()}
-                      </div>
-                      {member.username}
-                      {member.id === user.id && <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">(You)</span>}
-                    </td>
+  const handleTransferLeadership = async (member) => {
+    if (!window.confirm(`Передати лідерство користувачу ${member.username}? Ти станеш офіцером.`)) return;
+    setError('');
+    setSuccessMessage('');
+    setLoading(true);
+    try {
+      await api.patch(`/guilds/members/${member.id}/leader`);
+      await refreshProfile();
+      await fetchGuildMembers();
+      setSuccessMessage(`Лідерство передано користувачу ${member.username}.`);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, 'Не вдалося передати лідерство.'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                    <td className="py-3 px-4">
-                      <span className={`px-2.5 py-1 rounded-md text-xs font-bold border ${
-                        member.role === 'LEADER'
-                          ? 'bg-amber-500/10 text-amber-300 border-amber-500/40'
-                          : member.role === 'OFFICER'
-                          ? 'bg-purple-500/10 text-purple-300 border-purple-500/40'
-                          : 'bg-slate-800/80 text-slate-400 border-slate-700'
-                      }`}>
-                        {member.role}
-                      </span>
-                    </td>
-
-                    {/* Management actions */}
-                    {isManagementAllowed && (
-                      <td className="py-3 px-4 text-right">
-                        {member.id !== user.id && member.role !== 'LEADER' ? (
-                          <div className="flex items-center justify-end gap-2">
-                            {member.role === 'MEMBER' ? (
-                              <button
-                                onClick={() => handleChangeRole(member.id, 'OFFICER')}
-                                className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 rounded text-xs transition cursor-pointer"
-                              >
-                                + Officer
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleChangeRole(member.id, 'MEMBER')}
-                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded text-xs transition cursor-pointer"
-                              >
-                                - Member
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => handleKickMember(member.id, member.username)}
-                              className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded text-xs transition cursor-pointer"
-                            >
-                              Kick
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-600 text-xs italic">—</span>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------- OPTION 2: User has no Guild ----------------
   return (
-    <div className="max-w-md mx-auto bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-md mt-10">
-      <h2 className="text-xl font-bold text-purple-200 mb-4 text-center">Guild Management</h2>
+    <div className="mx-auto mt-2 max-w-5xl space-y-5">
+      <header>
+        <p className="text-xs font-bold uppercase tracking-widest text-brand-accent">Гільдія / Менеджмент</p>
+        <h1 className="mt-1 text-2xl font-extrabold text-foreground-primary">Керування гільдією</h1>
+        <p className="mt-1 text-sm text-foreground-muted">Створюй власну гільдію або приєднуйся до друзів за інвайт-кодом.</p>
+      </header>
 
-      {/* Show tabs ONLY for ADMIN role */}
-      {isAdmin && (
-        <div className="flex gap-4 border-b border-slate-800 pb-2 mb-4 justify-center">
-          <button
-            onClick={() => { setGuildFormTab('join'); setError(''); }}
-            className={`text-xs font-bold uppercase tracking-wider pb-1 transition-colors cursor-pointer ${
-              guildFormTab === 'join' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Join by Code
-          </button>
-          <button
-            onClick={() => { setGuildFormTab('create'); setError(''); }}
-            className={`text-xs font-bold uppercase tracking-wider pb-1 transition-colors cursor-pointer ${
-              guildFormTab === 'create' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Create Guild (Admin)
-          </button>
-        </div>
-      )}
+      {error && <div role="alert" className="rounded-xl border border-brand-danger/40 bg-brand-danger/10 p-3 text-sm text-red-300">{error}</div>}
+      {successMessage && <div role="status" className="rounded-xl border border-brand-success/40 bg-brand-success/10 p-3 text-sm text-emerald-300">{successMessage}</div>}
 
-      {error && <div className="mb-4 text-xs bg-red-500/10 border border-red-500/30 text-red-400 p-2.5 rounded-lg">{error}</div>}
-      {successMsg && <div className="mb-4 text-xs bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-2.5 rounded-lg">{successMsg}</div>}
-
-      {guildFormTab === 'join' ? (
-        <form onSubmit={handleJoinGuild} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Invite Code
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. WOR-123"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 placeholder:text-slate-600"
-            />
+      {!hasGuild ? (
+        <section className="mx-auto max-w-2xl rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-surface sm:p-6">
+          <div className="mb-5 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-brand-accent/30 bg-brand-accent/10 text-3xl">🏰</div>
+            <h2 className="mt-3 text-xl font-bold">Обери свою гільдію</h2>
+            <p className="mt-1 text-sm text-foreground-muted">Гільдія потрібна для спільних GvG-пресетів та координації битв, але створювати її під час реєстрації необов'язково.</p>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg text-sm transition cursor-pointer disabled:opacity-50 shadow-lg shadow-purple-950/50"
-          >
-            {loading ? 'Joining...' : 'Join Guild'}
-          </button>
-        </form>
+
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-xl border border-surface-border bg-surface-overlay p-1">
+            <button
+              type="button"
+              onClick={() => { setFormTab('join'); setError(''); setSuccessMessage(''); }}
+              className={`rounded-lg px-3 py-2.5 text-sm font-bold transition ${formTab === 'join' ? 'bg-brand-accent text-foreground-onAccent' : 'text-foreground-secondary hover:bg-surface-sunken'}`}
+            >
+              Приєднатися
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFormTab('create'); setError(''); setSuccessMessage(''); }}
+              className={`rounded-lg px-3 py-2.5 text-sm font-bold transition ${formTab === 'create' ? 'bg-brand-accent text-foreground-onAccent' : 'text-foreground-secondary hover:bg-surface-sunken'}`}
+            >
+              Створити гільдію
+            </button>
+          </div>
+
+          {formTab === 'join' ? (
+            <form onSubmit={handleJoinGuild} className="space-y-4">
+              <label className="block text-sm font-semibold text-foreground-secondary">
+                Інвайт-код
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                  placeholder="WOR-XXXXXXXX"
+                  autoComplete="off"
+                  className={`${inputClass} uppercase tracking-wider`}
+                  required
+                />
+              </label>
+              <button type="submit" disabled={loading} className={`${primaryButtonClass} w-full`}>
+                {loading ? 'Приєднання…' : 'Приєднатися до гільдії'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleCreateGuild} className="space-y-4">
+              <label className="block text-sm font-semibold text-foreground-secondary">
+                Назва гільдії
+                <input
+                  type="text"
+                  value={guildName}
+                  onChange={(event) => setGuildName(event.target.value)}
+                  placeholder="Наприклад, NoNameClan"
+                  maxLength={100}
+                  className={inputClass}
+                  required
+                />
+              </label>
+              <p className="text-xs text-foreground-muted">Ти автоматично станеш лідером нової гільдії та отримаєш інвайт-код.</p>
+              <button type="submit" disabled={loading} className={`${primaryButtonClass} w-full`}>
+                {loading ? 'Створення…' : 'Створити гільдію'}
+              </button>
+            </form>
+          )}
+        </section>
       ) : (
-        <form onSubmit={handleCreateGuild} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Guild Name
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="Enter new guild name"
-              value={guildName}
-              onChange={(e) => setGuildName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 placeholder:text-slate-600"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition cursor-pointer disabled:opacity-50 shadow-lg shadow-amber-950/50"
-          >
-            {loading ? 'Creating...' : 'Create Guild'}
-          </button>
-        </form>
+        <>
+          <section className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-surface sm:p-6">
+            <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-widest text-brand-accent">Твоя гільдія</p>
+                <h2 className="mt-1 break-words text-2xl font-extrabold text-foreground-primary">{user?.guildName || 'Гільдія'}</h2>
+                <p className="mt-1 text-sm text-foreground-muted">Твій ранг: <span className="font-bold text-brand-accent-hover">{roleLabel(user?.guildRole)}</span></p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {user?.inviteCode && (
+                  <button type="button" onClick={handleCopyInviteCode} className={secondaryButtonClass}>
+                    {copied ? '✓ Скопійовано' : 'Копіювати інвайт'}
+                  </button>
+                )}
+                {isGuildLeader && (
+                  <button type="button" onClick={handleRotateInviteCode} disabled={loading} className={secondaryButtonClass}>
+                    Оновити код
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-surface-border bg-surface-overlay p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold text-foreground-muted">ІНВАЙТ-КОД</p>
+                <code className="mt-1 block break-all font-mono text-lg font-bold tracking-wider text-brand-accent-hover">{user?.inviteCode || 'Код недоступний'}</code>
+              </div>
+              <div className="rounded-lg border border-surface-border bg-surface-sunken px-3 py-2 text-sm">
+                <span className="text-foreground-muted">Учасників: </span>
+                <span className="font-bold text-foreground-primary">{members.length}</span>
+              </div>
+            </div>
+            {isGuildLeader && <p className="mt-3 text-xs text-foreground-muted">Якщо оновиш код, старий код перестане працювати для нових учасників.</p>}
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-surface">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border p-4 sm:px-5">
+              <div>
+                <h3 className="text-lg font-bold">Учасники гільдії</h3>
+                <p className="mt-1 text-xs text-foreground-muted">Керування рангами доступне тільки лідеру гільдії.</p>
+              </div>
+              {loadingMembers && <span className="text-xs text-foreground-muted">Оновлення…</span>}
+            </div>
+
+            {members.length === 0 && !loadingMembers ? (
+              <div className="p-8 text-center text-sm text-foreground-muted">Список учасників порожній або ще завантажується.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="bg-surface-overlay text-xs uppercase tracking-wide text-foreground-muted">
+                    <tr>
+                      <th className="px-4 py-3">Гравець</th>
+                      <th className="px-4 py-3">Ранг</th>
+                      <th className="px-4 py-3 text-right">Дії</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {members.map((member) => {
+                      const isSelf = String(member.id) === String(user?.id);
+                      const isLeader = member.role === 'LEADER';
+                      return (
+                        <tr key={member.id} className="transition hover:bg-surface-sunken/40">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-brand-secondary/30 bg-brand-secondary/10 font-bold text-brand-secondary-hover">
+                                {member.username?.charAt(0)?.toUpperCase() || '?'}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="break-all font-semibold text-foreground-primary">{member.username}</p>
+                                {isSelf && <p className="text-xs text-foreground-muted">Це ти</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-md border px-2.5 py-1 text-xs font-bold ${
+                              member.role === 'LEADER'
+                                ? 'border-brand-accent/40 bg-brand-accent/10 text-brand-accent-hover'
+                                : member.role === 'OFFICER'
+                                  ? 'border-brand-secondary/40 bg-brand-secondary/10 text-brand-secondary-hover'
+                                  : 'border-surface-border bg-surface-sunken text-foreground-secondary'
+                            }`}>
+                              {roleLabel(member.role)}
+                            </span>
+                            {member.platformRole === 'ADMIN' && <span className="ml-2 text-[10px] font-bold text-red-300">ADMIN ПОРТАЛУ</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {isGuildLeader && !isSelf && !isLeader ? (
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {member.role === 'MEMBER' ? (
+                                  <button type="button" onClick={() => handleChangeRole(member.id, 'OFFICER')} className={secondaryButtonClass}>Зробити офіцером</button>
+                                ) : (
+                                  <button type="button" onClick={() => handleChangeRole(member.id, 'MEMBER')} className={secondaryButtonClass}>Зняти ранг</button>
+                                )}
+                                <button type="button" onClick={() => handleTransferLeadership(member)} disabled={loading} className={secondaryButtonClass}>Передати лідерство</button>
+                                <button type="button" onClick={() => handleKickMember(member)} className="rounded-lg border border-brand-danger/40 bg-brand-danger/10 px-3 py-2 text-xs font-bold text-red-300 transition hover:bg-brand-danger/20">Виключити</button>
+                              </div>
+                            ) : (
+                              <span className="text-foreground-muted">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
       )}
     </div>
   );

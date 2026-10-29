@@ -7,5 +7,7 @@ import java.util.Optional;
 
 public interface GuildRepository extends JpaRepository<Guild, Long> {
     Optional<Guild> findByInviteCode(String inviteCode);
+    Optional<Guild> findByInviteCodeIgnoreCase(String inviteCode);
     boolean existsByInviteCode(String inviteCode);
+    boolean existsByInviteCodeIgnoreCase(String inviteCode);
 }

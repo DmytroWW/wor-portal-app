@@ -9,11 +9,16 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState('login');
 
+  const refreshUserProfile = async () => {
+    const response = await api.get('/users/me');
+    setUser(response.data);
+    return response.data;
+  };
+
   const fetchUserProfile = async () => {
     try {
-      const res = await api.get('/users/me');
-      setUser(res.data);
-    } catch (err) {
+      await refreshUserProfile();
+    } catch {
       localStorage.removeItem('token');
       setUser(null);
     } finally {
@@ -22,12 +27,13 @@ function App() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    if (localStorage.getItem('token')) {
       fetchUserProfile();
     } else {
       setLoading(false);
     }
+    // Initial authentication check only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAuthSuccess = () => {
@@ -43,19 +49,24 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-slate-900 text-white font-semibold">
+      <div className="flex h-screen items-center justify-center bg-surface-base font-semibold text-foreground-primary">
         Завантаження...
       </div>
     );
   }
 
-
   if (user) {
-    return <DashboardPage user={user} onLogout={handleLogout} />;
+    return (
+      <DashboardPage
+        user={user}
+        onLogout={handleLogout}
+        onRefreshUser={refreshUserProfile}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex justify-center items-center">
+    <div className="flex min-h-screen items-center justify-center bg-surface-base">
       {page === 'login' ? (
         <LoginPage
           onSuccess={handleAuthSuccess}
