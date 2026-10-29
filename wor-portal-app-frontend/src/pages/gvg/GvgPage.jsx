@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import GvGCreatePresetPage from './GvGCreatePresetPage';
-import GvGSearchPresetPage from './GvGSearchPresetPage';
-import GvGBattlePage from './GvGBattlePage';
+import GvGCreatePresetPage from "./GvgCreatePresetPage";
+import GvGSearchPresetPage from "./GvgSearchPresetPage";
+import GvGBattlePage from "./GvgBattlePage";
 
 export default function GvGPage() {
   const [currentView, setCurrentView] = useState('hub'); // 'hub' | 'search' | 'create' | 'battle'
