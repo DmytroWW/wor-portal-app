@@ -6,9 +6,15 @@ import GvGBattlePage from "./GvgBattlePage";
 export default function GvGPage() {
   const [currentView, setCurrentView] = useState('hub'); // 'hub' | 'search' | 'create' | 'battle'
 
+
   // Перехід на сторінку поточної битви GvG
   if (currentView === 'battle') {
-    return <GvGBattlePage onBack={() => setCurrentView('hub')} />;
+    return (
+      <GvGBattlePage
+        onBack={() => setCurrentView('hub')}
+        onCreatePreset={() => setCurrentView('create')}
+      />
+    );
   }
 
   // Перехід на сторінку пошуку пресетів
@@ -18,7 +24,12 @@ export default function GvGPage() {
 
   // Перехід на сторінку створення пресету
   if (currentView === 'create') {
-    return <GvGCreatePresetPage onBack={() => setCurrentView('hub')} />;
+    return (
+      <GvGCreatePresetPage
+        onBack={() => setCurrentView('hub')}
+        onBackToBattle={() => setCurrentView('battle')}
+      />
+    );
   }
 
   return (

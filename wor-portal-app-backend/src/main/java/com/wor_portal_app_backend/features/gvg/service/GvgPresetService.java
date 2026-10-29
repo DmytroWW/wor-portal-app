@@ -6,6 +6,7 @@ import com.wor_portal_app_backend.entity.Hero;
 import com.wor_portal_app_backend.exception.ResourceNotFoundException;
 import com.wor_portal_app_backend.exception.ValidationException;
 import com.wor_portal_app_backend.features.gvg.dto.GvgPresetCreateRequest;
+import com.wor_portal_app_backend.features.gvg.dto.GvgPresetCodeAvailabilityResponse;
 import com.wor_portal_app_backend.features.gvg.dto.GvgPresetDetailsResponse;
 import com.wor_portal_app_backend.features.gvg.dto.GvgPresetHeroDetailsResponse;
 import com.wor_portal_app_backend.features.gvg.dto.GvgPresetHeroRequest;
@@ -65,6 +66,38 @@ public class GvgPresetService {
                 .stream()
                 .map(presetMapper::toResponse)
                 .toList();
+    }
+
+    /**
+     * Checks whether a preset code is unused within the current guild.
+     * When editing a preset, its own ID is excluded from the duplicate check.
+     */
+    public GvgPresetCodeAvailabilityResponse checkPresetCodeAvailability(
+            String presetCode,
+            Long excludePresetId
+    ) {
+        if (presetCode == null || presetCode.isBlank()) {
+            throw new ValidationException("Preset code must not be blank");
+        }
+
+        String normalizedCode = presetCode.trim();
+        validatePresetCode(normalizedCode);
+
+        Long guildId = guildContextService.getCurrentGuildId();
+
+        if (excludePresetId != null) {
+            GvgPreset currentPreset = getCurrentGuildPreset(excludePresetId);
+            if (currentPreset.getPresetCode().equals(normalizedCode)) {
+                return new GvgPresetCodeAvailabilityResponse(normalizedCode, true);
+            }
+        }
+
+        boolean available = !presetRepository.existsByGuild_IdAndPresetCode(
+                guildId,
+                normalizedCode
+        );
+
+        return new GvgPresetCodeAvailabilityResponse(normalizedCode, available);
     }
 
     public GvgPresetResponse getPreset(Long presetId) {

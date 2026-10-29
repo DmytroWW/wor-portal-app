@@ -1,0 +1,1203 @@
+# 📋 WOR PORTAL APP — Контекст деплою проєкту
+
+**Дата:** 29.10.2026
+**Проєкт:** WoR Portal App
+**GitHub:** https://github.com/DmytroWW/wor-portal-app
+
+Цей документ описує архітектуру проєкту, виконані зміни, налаштування Docker, Render, Neon PostgreSQL, процес деплою та поточний стан застосунку.
+
+Його можна використовувати як контекст для продовження роботи в новому чаті.
+
+---
+
+# 1. Загальна інформація про проєкт
+
+WoR Portal App — вебзастосунок, який складається з трьох основних частин:
+
+- Frontend — React.
+- Backend — Spring Boot.
+- Database — PostgreSQL.
+
+Frontend і Backend знаходяться в одному GitHub-репозиторії, але деплояться як окремі сервіси.
+
+### Технології
+
+**Backend:**
+- Java 25
+- Spring Boot 4.1.1
+- Spring Security
+- Spring Data JPA
+- Hibernate
+- PostgreSQL JDBC Driver
+- Flyway
+- JWT (jjwt 0.13.0)
+- Lombok
+- Maven
+- Docker
+
+**Frontend:**
+- React 19
+- Vite 8
+- JavaScript / JSX
+- Tailwind CSS 4
+- Axios
+- npm
+
+**Інфраструктура:**
+- GitHub — зберігання коду.
+- Render Web Service — Backend.
+- Render Static Site — Frontend.
+- Neon — PostgreSQL.
+- Docker — контейнеризація Backend.
+
+---
+
+# 2. Структура GitHub-репозиторію
+
+Репозиторій:
+
+https://github.com/DmytroWW/wor-portal-app
+
+Локальна директорія:
+
+```text
+C:\Dev\Projects\IntelijWorkspace\wor-portal-app
+```
+
+Структура:
+
+```text
+wor-portal-app/
+│
+├── wor-portal-app-backend/
+│   │
+│   ├── src/
+│   │   └── main/
+│   │       ├── java/
+│   │       └── resources/
+│   │           ├── application.properties
+│   │           └── db/
+│   │               └── migration/
+│   │
+│   └── pom.xml
+│
+├── wor-portal-app-frontend/
+│   │
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── axios.js
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── admin/
+│   │   │   ├── gvg/
+│   │   │   ├── DashboardPage.jsx
+│   │   │   ├── LoginPage.jsx
+│   │   │   └── RegisterPage.jsx
+│   │   │
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   │
+│   ├── package.json
+│   ├── vite.config.js
+│   └── index.html
+│
+├── Dockerfile
+├── docker-compose.yml
+├── pom.xml
+└── .gitignore
+```
+
+У проєкті використовується багатомодульний Maven.
+
+Кореневий `pom.xml` є батьківським для Backend.
+
+---
+
+# 3. Архітектура після деплою
+
+Запланована production-архітектура:
+
+```text
+                  КОРИСТУВАЧ
+                      |
+                      | HTTPS
+                      ▼
+            RENDER STATIC SITE
+               React + Vite
+                      |
+                      | Axios / HTTPS
+                      ▼
+            RENDER WEB SERVICE
+             Spring Boot 4.1.1
+                 Java 25
+                      |
+                      | JDBC + SSL
+                      ▼
+                 NEON CLOUD
+               PostgreSQL
+                      |
+                      ▼
+              Дані застосунку
+```
+
+Frontend і Backend використовують різні домени.
+
+Тому для їхньої взаємодії необхідно правильно налаштувати CORS у Spring Security.
+
+---
+
+# 4. Backend — деплой на Render
+
+## 4.1. Інформація про сервіс
+
+**Платформа:** Render
+**Тип:** Web Service
+**Runtime:** Docker
+
+Публічний URL:
+
+https://wor-portal-app.onrender.com
+
+Налаштування:
+
+| Параметр | Значення |
+|---|---|
+| Name | wor-portal-app |
+| Repository | DmytroWW/wor-portal-app |
+| Branch | main |
+| Language | Docker |
+| Region | Frankfurt (EU Central) |
+| Root Directory | порожній |
+| Dockerfile Path | ./Dockerfile |
+| Port | 10000 |
+
+Порт `10000` Render передає через змінну середовища `PORT`.
+
+Spring Boot автоматично використовує цей порт.
+
+## 4.2. Dockerfile
+
+У корені репозиторію створено файл:
+
+```text
+wor-portal-app/Dockerfile
+```
+
+Його конфігурація:
+
+```dockerfile
+# ===============================
+# STAGE 1: BUILD
+# ===============================
+
+FROM maven:3.9-eclipse-temurin-25 AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+
+COPY wor-portal-app-backend ./wor-portal-app-backend
+
+RUN mvn clean package -pl wor-portal-app-backend -am -DskipTests
+
+
+# ===============================
+# STAGE 2: RUN
+# ===============================
+
+FROM eclipse-temurin:25-jre
+
+WORKDIR /app
+
+COPY --from=build /app/wor-portal-app-backend/target/*.jar app.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+Використовується Multi-stage Docker Build.
+
+На першому етапі Maven збирає Backend.
+
+На другому етапі запускається готовий Spring Boot JAR.
+
+Frontend у Docker-образ Backend не включається.
+
+---
+
+# 5. Backend — зміни application.properties
+
+Файл:
+
+```text
+wor-portal-app-backend/src/main/resources/application.properties
+```
+
+Спочатку застосунок був налаштований тільки на локальну PostgreSQL:
+
+```properties
+server.port=8080
+
+spring.datasource.url=jdbc:postgresql://localhost:5432/wor_portal_db
+spring.datasource.username=postgres
+spring.datasource.password=postgres_password
+```
+
+Ця конфігурація не підходила для Render, оскільки Backend не може використовувати `localhost` для підключення до PostgreSQL на іншому сервері.
+
+Тому налаштування змінили.
+
+### Нова конфігурація
+
+```properties
+# ===============================
+# SERVER
+# ===============================
+
+server.port=${PORT:8080}
+server.address=0.0.0.0
+
+# ===============================
+# LOGGING
+# ===============================
+
+logging.level.org.springframework.security=INFO
+
+# ===============================
+# DATABASE
+# ===============================
+
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/wor_portal_db}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:postgres_password}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# ===============================
+# JPA / HIBERNATE
+# ===============================
+
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.open-in-view=false
+
+# ===============================
+# FLYWAY
+# ===============================
+
+spring.flyway.enabled=true
+spring.flyway.baseline-on-migrate=true
+```
+
+### Що змінилося
+
+**1. Динамічний порт**
+
+```properties
+server.port=${PORT:8080}
+```
+
+Локально використовується `8080`.
+
+На Render використовується порт зі змінної `PORT`.
+
+У логах підтверджено запуск на `10000`.
+
+**2. Динамічне підключення до PostgreSQL**
+
+```properties
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/wor_portal_db}
+```
+
+Локально застосунок використовує локальну PostgreSQL.
+
+На Render — PostgreSQL із Neon.
+
+**3. Логування Spring Security**
+
+Було:
+
+```properties
+logging.level.org.springframework.security=TRACE
+```
+
+Стало:
+
+```properties
+logging.level.org.springframework.security=INFO
+```
+
+Це зменшує кількість службових повідомлень у production.
+
+**4. SQL-логування**
+
+Було:
+
+```properties
+spring.jpa.show-sql=true
+```
+
+Стало:
+
+```properties
+spring.jpa.show-sql=false
+```
+
+SQL-запити більше не виводяться постійно в консоль.
+
+---
+
+# 6. PostgreSQL — Neon
+
+Для production-бази вирішили використовувати Neon замість Render PostgreSQL.
+
+Панель керування:
+
+https://console.neon.tech
+
+### Створений проєкт
+
+```text
+Project: wor-portal-db
+
+Branch: production
+
+Database: neondb
+
+Role: neondb_owner
+
+Region: eu-central-1
+```
+
+PostgreSQL працює у Frankfurt, тобто в тому самому регіоні, що й Backend на Render.
+
+### Host
+
+```text
+ep-sparkling-thunder-ba2mg09l.c-8.eu-central-1.aws.neon.tech
+```
+
+### JDBC URL
+
+```text
+jdbc:postgresql://ep-sparkling-thunder-ba2mg09l.c-8.eu-central-1.aws.neon.tech/neondb?sslmode=require
+```
+
+Підключення використовує SSL.
+
+### Важливо щодо пароля
+
+Пароль бази не зберігається в GitHub.
+
+Він передається Backend через Environment Variables у Render.
+
+Під час налаштування пароль Neon випадково потрапив у переписку. Було рекомендовано змінити його через `Reset password`.
+
+**Перед production-використанням потрібно переконатися, що пароль змінено.**
+
+---
+
+# 7. Environment Variables Backend
+
+На Render у Web Service були налаштовані змінні середовища для Neon.
+
+### DB_URL
+
+```text
+jdbc:postgresql://ep-sparkling-thunder-ba2mg09l.c-8.eu-central-1.aws.neon.tech/neondb?sslmode=require
+```
+
+### DB_USERNAME
+
+```text
+neondb_owner
+```
+
+### DB_PASSWORD
+
+```text
+<пароль Neon>
+```
+
+Пароль повинен залишатися секретним.
+
+Spring Boot отримує значення через:
+
+```properties
+spring.datasource.url=${DB_URL:...}
+spring.datasource.username=${DB_USERNAME:...}
+spring.datasource.password=${DB_PASSWORD:...}
+```
+
+Завдяки цьому один і той самий код працює локально та на Render.
+
+---
+
+# 8. Виправлення Lombok для Java 25
+
+Під час першого деплою Backend виникли помилки компіляції.
+
+Приклади:
+
+```text
+cannot find symbol
+method getUsername()
+```
+
+```text
+cannot find symbol
+method getId()
+```
+
+```text
+cannot find symbol
+method setGuild()
+```
+
+```text
+cannot find symbol
+method builder()
+```
+
+Причина полягала в тому, що Lombok не генерував необхідні методи під час Maven-збірки в Docker.
+
+Для виправлення змінили:
+
+```text
+wor-portal-app-backend/pom.xml
+```
+
+У `<build>` додали явне налаштування Maven Compiler Plugin.
+
+```xml
+<build>
+    <plugins>
+
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+
+            <configuration>
+                <release>25</release>
+
+                <annotationProcessorPaths>
+                    <path>
+                        <groupId>org.projectlombok</groupId>
+                        <artifactId>lombok</artifactId>
+                        <version>${lombok.version}</version>
+                    </path>
+                </annotationProcessorPaths>
+
+            </configuration>
+        </plugin>
+
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+
+            <configuration>
+                <excludes>
+                    <exclude>
+                        <groupId>org.projectlombok</groupId>
+                        <artifactId>lombok</artifactId>
+                    </exclude>
+                </excludes>
+            </configuration>
+
+        </plugin>
+
+    </plugins>
+</build>
+```
+
+Це змусило Maven явно використовувати Lombok як Annotation Processor.
+
+Після виправлення локальна збірка завершилася успішно.
+
+Команда:
+
+```bash
+mvn clean package -pl wor-portal-app-backend -am -DskipTests
+```
+
+Результат:
+
+```text
+BUILD SUCCESS
+```
+
+Після `git push` Backend успішно задеплоївся на Render.
+
+---
+
+# 9. Підтвердження успішного запуску Backend
+
+Render показав:
+
+```text
+Tomcat initialized with port 10000 (http)
+```
+
+Потім:
+
+```text
+Tomcat started on port 10000 (http)
+```
+
+І:
+
+```text
+Started WorPortalAppBackendApplication
+in 159.502 seconds
+```
+
+Це підтверджує:
+
+- Docker-образ зібраний.
+- Java 25 працює.
+- Spring Boot запускається.
+- Tomcat слухає порт Render.
+- Застосунок успішно проходить ініціалізацію.
+
+### Перевірка через браузер
+
+Відкривали:
+
+https://wor-portal-app.onrender.com/
+
+Отримали:
+
+```text
+Whitelabel Error Page
+
+There was an unexpected error
+
+type=Forbidden
+status=403
+```
+
+Це не означає, що Backend не працює.
+
+Причина, найімовірніше, у Spring Security, який забороняє неавторизований доступ до кореневого маршруту `/`.
+
+**При цьому конкретні API endpoints ще не перевірялися через Postman або Frontend.**
+
+---
+
+# 10. Flyway — міграції PostgreSQL
+
+Backend використовує Flyway для управління структурою бази даних.
+
+Конфігурація:
+
+```properties
+spring.flyway.enabled=true
+spring.flyway.baseline-on-migrate=true
+```
+
+Hibernate:
+
+```properties
+spring.jpa.hibernate.ddl-auto=validate
+```
+
+Це означає:
+
+1. Flyway застосовує SQL-міграції.
+2. Створює необхідні таблиці.
+3. Hibernate перевіряє відповідність структури бази Entity-класам.
+
+### Результат у Neon
+
+У Neon Monitoring були зафіксовані SQL-команди:
+
+```sql
+CREATE TABLE flyway_schema_history
+```
+
+```sql
+CREATE TABLE users
+```
+
+```sql
+CREATE TABLE guilds
+```
+
+```sql
+CREATE TABLE heroes
+```
+
+```sql
+CREATE TABLE demon_soldiers
+```
+
+Також створені таблиці GvG-системи:
+
+```text
+gvg_maps
+gvg_map_tiles
+gvg_presets
+gvg_preset_heroes
+gvg_battle_rounds
+gvg_battle_slots
+gvg_battle_defense_heroes
+```
+
+Крім того, в Neon були зафіксовані численні INSERT-запити для завантаження героїв.
+
+Отже, підтверджено, що Backend взаємодіє з Neon PostgreSQL.
+
+---
+
+# 11. Локальна PostgreSQL через Docker Compose
+
+У корені проєкту є:
+
+```text
+docker-compose.yml
+```
+
+Вміст:
+
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: wor-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: wor_portal_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+Цей файл використовується тільки для локальної розробки.
+
+Локальна схема:
+
+```text
+Spring Boot localhost:8080
+          |
+          ▼
+PostgreSQL localhost:5432
+```
+
+Production:
+
+```text
+Spring Boot Render
+          |
+          ▼
+PostgreSQL Neon
+```
+
+Docker Compose не використовується Render під час деплою Backend.
+
+---
+
+# 12. Frontend — React + Vite
+
+Frontend знаходиться в:
+
+```text
+wor-portal-app-frontend/
+```
+
+Основні технології:
+
+```text
+React 19
+Vite 8
+Tailwind CSS 4
+Axios
+```
+
+Frontend використовує JWT для авторизації.
+
+Токен зберігається в:
+
+```javascript
+localStorage
+```
+
+Axios автоматично додає токен у запити:
+
+```javascript
+Authorization: Bearer <token>
+```
+
+### Основний Axios-клієнт
+
+Файл:
+
+```text
+wor-portal-app-frontend/src/api/axios.js
+```
+
+Код:
+
+```javascript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+});
+
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+export default api;
+```
+
+Цей файл не змінювали.
+
+Він уже підтримує Environment Variables Vite.
+
+---
+
+# 13. Локальне підключення Frontend до Backend
+
+Файл:
+
+```text
+wor-portal-app-frontend/vite.config.js
+```
+
+Містить:
+
+```javascript
+server: {
+  port: 5173,
+  proxy: {
+    '/api': {
+      target: 'http://localhost:8080',
+      changeOrigin: true,
+      secure: false,
+    },
+  },
+},
+```
+
+Це означає, що під час локальної розробки:
+
+```text
+React localhost:5173
+        |
+        | /api
+        ▼
+Spring Boot localhost:8080
+        |
+        ▼
+PostgreSQL localhost:5432
+```
+
+Vite Proxy працює тільки під час локальної розробки.
+
+У production Frontend звертатиметься безпосередньо до Backend на Render.
+
+---
+
+# 14. Frontend — Render Static Site
+
+Для Frontend створюється окремий сервіс на Render.
+
+**Тип сервісу:** Static Site
+
+Назва:
+
+```text
+wor-portal-frontend
+```
+
+Очікувана адреса:
+
+```text
+https://wor-portal-frontend.onrender.com
+```
+
+Точний URL потрібно перевірити після успішного деплою.
+
+### Налаштування Static Site
+
+| Параметр | Значення |
+|---|---|
+| Repository | DmytroWW/wor-portal-app |
+| Branch | main |
+| Root Directory | wor-portal-app-frontend/ |
+| Build Command | npm ci && npm run build |
+| Publish Directory | dist |
+| Environment | Production |
+
+### Environment Variable
+
+Додано:
+
+```text
+VITE_API_BASE_URL
+```
+
+Значення:
+
+```text
+https://wor-portal-app.onrender.com/api
+```
+
+Ця змінна використовується Axios.
+
+Наприклад:
+
+```javascript
+api.get('/users/me')
+```
+
+Перетворюється на:
+
+```text
+GET https://wor-portal-app.onrender.com/api/users/me
+```
+
+Важливо: змінні `VITE_*` вбудовуються в JavaScript під час збірки.
+
+Тому після зміни `VITE_API_BASE_URL` потрібно повторно зібрати Frontend.
+
+---
+
+# 15. Помилка першого деплою Frontend
+
+Під час збірки React на Render виникла помилка:
+
+```text
+UNRESOLVED_IMPORT
+```
+
+Render не міг знайти:
+
+```text
+./GvGCreatePresetPage
+./GvGSearchPresetPage
+./GvGBattlePage
+```
+
+Проблема була в регістрі літер.
+
+### Реальні назви файлів
+
+```text
+GvgCreatePresetPage.jsx
+GvgSearchPresetPage.jsx
+GvgBattlePage.jsx
+```
+
+### Неправильні імпорти
+
+У файлі:
+
+```text
+src/pages/gvg/GvgPage.jsx
+```
+
+Було:
+
+```jsx
+import GvGCreatePresetPage from "./GvGCreatePresetPage";
+import GvGSearchPresetPage from "./GvGSearchPresetPage";
+import GvGBattlePage from "./GvGBattlePage";
+```
+
+### Правильні імпорти
+
+Потрібно використовувати:
+
+```jsx
+import GvGCreatePresetPage from "./GvgCreatePresetPage";
+import GvGSearchPresetPage from "./GvgSearchPresetPage";
+import GvGBattlePage from "./GvgBattlePage";
+```
+
+Причина:
+
+Windows зазвичай не розрізняє регістр літер у назвах файлів.
+
+Linux, який використовується Render, розрізняє.
+
+Наприклад:
+
+```text
+GvGCreatePresetPage.jsx
+```
+
+і:
+
+```text
+GvgCreatePresetPage.jsx
+```
+
+для Linux — різні назви.
+
+### Статус виправлення
+
+Ми визначили причину помилки та надали точне виправлення.
+
+**Але підтвердження успішного повторного деплою Frontend у переписці ще немає.**
+
+Тому поточний статус Frontend — потребує перевірки після виправлення імпортів.
+
+---
+
+# 16. GitHub і автоматичний деплой
+
+Backend і Frontend знаходяться в одному репозиторії:
+
+```text
+DmytroWW/wor-portal-app
+```
+
+Основна гілка:
+
+```text
+main
+```
+
+Для відправлення змін використовуються:
+
+```bash
+git add .
+git commit -m "Description"
+git push origin main
+```
+
+Render може автоматично запускати новий Deploy після змін у GitHub, якщо Auto Deploy увімкнений.
+
+### Backend
+
+```text
+GitHub main
+      |
+      ▼
+Render Docker Build
+      |
+      ▼
+Maven Build
+      |
+      ▼
+Spring Boot JAR
+      |
+      ▼
+Web Service
+```
+
+### Frontend
+
+```text
+GitHub main
+      |
+      ▼
+Render Static Site Build
+      |
+      ▼
+npm ci
+      |
+      ▼
+npm run build
+      |
+      ▼
+dist/
+      |
+      ▼
+Static Site
+```
+
+---
+
+# 17. CORS — ще потрібно налаштувати
+
+Оскільки Frontend і Backend розміщуються на різних доменах, браузер застосовує CORS.
+
+Frontend:
+
+```text
+https://wor-portal-frontend.onrender.com
+```
+
+Backend:
+
+```text
+https://wor-portal-app.onrender.com
+```
+
+Для коректної роботи потрібно дозволити Frontend Origin у Spring Security.
+
+Наприклад, Backend повинен приймати запити з:
+
+```text
+https://wor-portal-frontend.onrender.com
+```
+
+Це особливо важливо для:
+
+```text
+POST /api/auth/login
+POST /api/auth/register
+GET /api/users/me
+```
+
+Точні маршрути потрібно перевірити за контролерами Backend.
+
+### Поточний статус CORS
+
+Файл `SecurityConfig.java` ще не аналізували.
+
+Тому невідомо, чи CORS уже правильно налаштований.
+
+**Це один із наступних обов'язкових кроків.**
+
+---
+
+# 18. Що вже працює
+
+### ✅ Backend
+
+- Spring Boot 4.1.1.
+- Java 25.
+- Docker.
+- Maven.
+- Lombok.
+- Render Web Service.
+- Запуск Tomcat на порту 10000.
+- Підключення до Neon.
+- Виконання Flyway-міграцій.
+
+Backend URL:
+
+https://wor-portal-app.onrender.com
+
+### ✅ Database
+
+- Neon PostgreSQL.
+- Production branch.
+- SSL-підключення.
+- Створені таблиці.
+- Виконані міграції.
+- Завантажені дані героїв.
+
+### ⚠️ Frontend
+
+- React + Vite.
+- Render Static Site налаштований.
+- Environment Variable додана.
+- Перша збірка завершилася помилкою через регістр назв файлів.
+- Виправлення імпортів визначено.
+- Успішний деплой ще не підтверджений.
+
+---
+
+# 19. Що потрібно зробити далі
+
+Наступні завдання в такому порядку:
+
+1. Виправити імпорти в `GvgPage.jsx`, якщо це ще не зроблено.
+2. Запустити локально `npm run build`.
+3. Відправити виправлення на GitHub.
+4. Дочекатися успішного деплою Render Static Site.
+5. Відкрити Frontend через публічний URL.
+6. Перевірити `SecurityConfig.java` і налаштувати CORS.
+7. Перевірити реєстрацію користувача.
+8. Перевірити авторизацію через JWT.
+9. Перевірити запит `/api/users/me`.
+10. Перевірити функціонал Guild, Heroes, GvG та Admin Panel.
+
+Окремо варто перевірити, що пароль Neon було змінено після його випадкового розкриття.
+
+Для production також бажано прибрати паролі за замовчуванням із `application.properties` і використовувати окрему конфігурацію для локальної розробки.
+
+---
+
+# 20. Підсумкова схема
+
+```text
+                  WOR PORTAL APP
+                       |
+                       |
+                 GitHub Repository
+               DmytroWW/wor-portal-app
+                       |
+           ┌───────────┴───────────┐
+           |                       |
+           ▼                       ▼
+        BACKEND                 FRONTEND
+       Spring Boot              React 19
+        Java 25                  Vite 8
+           |                       |
+           ▼                       ▼
+      Render Docker          Render Static Site
+       Web Service            (деплой у процесі)
+           |                       |
+           |                       |
+           |◄──── HTTPS API ───────┘
+           |
+           | JDBC + SSL
+           ▼
+      Neon PostgreSQL
+           |
+           ▼
+      wor-portal-db
+       production
+         neondb
+```
+
+### Production URLs
+
+**GitHub:**
+
+https://github.com/DmytroWW/wor-portal-app
+
+**Backend — Render:**
+
+https://wor-portal-app.onrender.com
+
+**Frontend — Render (очікуваний URL):**
+
+https://wor-portal-frontend.onrender.com
+
+**Database Dashboard — Neon:**
+
+https://console.neon.tech
+
+---
+
+## 📌 Контекст для продовження роботи
+
+Ми деплоїмо монорепозиторій WoR Portal App, який містить Spring Boot 4.1.1 Backend на Java 25 та React 19 + Vite 8 Frontend.
+
+Backend уже успішно задеплоєний на Render через Docker, доступний за адресою `https://wor-portal-app.onrender.com` та підключений до Neon PostgreSQL через Environment Variables `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`.
+
+Для Backend створено Dockerfile у корені репозиторію, змінено `application.properties` для підтримки локального та production-середовища, а також виправлено Maven Compiler Plugin для правильної роботи Lombok із Java 25.
+
+Flyway успішно створив таблиці в Neon PostgreSQL. Spring Boot запустився на Render на порту 10000.
+
+Frontend деплоїться окремо як Render Static Site з Root Directory `wor-portal-app-frontend/`, Build Command `npm ci && npm run build`, Publish Directory `dist` та Environment Variable `VITE_API_BASE_URL=https://wor-portal-app.onrender.com/api`.
+
+Перший деплой Frontend завершився помилкою через неправильний регістр назв імпортованих GvG-компонентів у `GvgPage.jsx`. Правильні назви файлів: `GvgCreatePresetPage.jsx`, `GvgSearchPresetPage.jsx`, `GvgBattlePage.jsx`. Виправлення визначено, але повторний успішний деплой ще не підтверджений.
+
+**Наступний етап: завершити деплой Frontend, перевірити CORS у Spring Security та протестувати авторизацію React → Spring Boot → Neon.**

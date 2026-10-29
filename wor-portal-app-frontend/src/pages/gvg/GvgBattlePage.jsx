@@ -259,7 +259,7 @@ function PresetMiniature({ snapshot, heroesById, soldiersById, onCopy, copied })
   );
 }
 
-export default function GvgBattle() {
+export default function GvgBattle({ onCreatePreset }) {
   const [mapType, setMapType] = useState('TOWER');
   const [activeMap, setActiveMap] = useState(null);
   const [activeTiles, setActiveTiles] = useState([]);
@@ -636,6 +636,72 @@ export default function GvgBattle() {
     }
   };
 
+  const startPresetFromBattle = (sourceSlot, placementsInput, metadata = {}) => {
+    if (!sourceSlot || !isEditable || historyView) return;
+
+    const inputPlacements = Array.isArray(placementsInput)
+      ? placementsInput
+      : Object.values(placementsInput || {});
+
+    const placements = inputPlacements
+      .filter((placement) => placement?.heroId != null && placement?.tileId != null)
+      .map((placement) => ({
+        heroId: placement.heroId,
+        tileId: placement.tileId,
+        x: placement.x,
+        y: placement.y,
+        attackDirection: placement.attackDirection || 'DOWN',
+      }));
+
+    if (placements.length !== 5) {
+      if (defenseEditorSlotId != null && String(defenseEditorSlotId) === String(sourceSlot.id)) {
+        setDefenseModalError('Щоб створити пресет, розмісти рівно 5 героїв.');
+      } else {
+        openDefenseEditor(sourceSlot);
+        setDefenseModalError('Щоб створити пресет, спочатку розмісти рівно 5 героїв.');
+      }
+      return;
+    }
+
+    const sourceMapType = String(sourceSlot.mapType || activeMap?.mapType || mapType).toUpperCase() === 'FORT'
+      ? 'FORT'
+      : 'TOWER';
+
+    const payload = {
+      version: 1,
+      source: 'gvg-battle',
+      mapType: sourceMapType,
+      mapId: activeMap?.id ?? null,
+      slotId: sourceSlot.id,
+      slotTitle: sourceSlot.title || 'GvG',
+      opponentNickname: metadata.opponentNickname ?? sourceSlot.opponentNickname ?? '',
+      battlePower: metadata.battlePower ?? sourceSlot.battlePower ?? null,
+      mirrorNote: metadata.mirrorNote ?? sourceSlot.mirrorNote ?? '',
+      suggestedName: sourceSlot.title ? `Контратака ${sourceSlot.title}` : 'Контратака GvG',
+      heroes: placements,
+    };
+
+    try {
+      window.sessionStorage.setItem(
+        'gvg-battle-preset-draft',
+        JSON.stringify(payload)
+      );
+
+      if (typeof onCreatePreset === 'function') {
+        onCreatePreset();
+      } else {
+        setError('Не вдалося відкрити сторінку створення пресету.');
+      }
+    } catch (err) {
+      const message = 'Не вдалося передати розстановку в створення пресету. Перевір доступ до sessionStorage.';
+      if (defenseEditorSlotId != null && String(defenseEditorSlotId) === String(sourceSlot.id)) {
+        setDefenseModalError(message);
+      } else {
+        setError(message);
+      }
+    }
+  };
+
   const scrollDefenseHeroList = (direction) => {
     defenseHeroListRef.current?.scrollBy({ left: direction * 260, behavior: 'smooth' });
   };
@@ -778,7 +844,23 @@ export default function GvgBattle() {
                         <div className="flex min-h-[100px] flex-col items-center justify-center rounded-lg border border-dashed border-surface-border bg-surface-base/70 p-3 text-center">
                           <p className="text-[10px] font-semibold text-foreground-secondary">Авто-пошук: немає збігів</p>
                           <p className="mt-1 text-[9px] text-foreground-muted">{defenseHeroes.length === 5 ? 'Для цього дефу exact-пошук не знайшов атак.' : 'Відкрий «Розстановка» й розмісти п’ятьох героїв, щоб запустити exact-пошук.'}</p>
-                          <button type="button" disabled={!isEditable} onClick={() => window.location.assign('/gvg/create-preset')} className="mt-2 rounded-md border border-brand-accent/40 bg-brand-accent/10 px-2.5 py-1 text-[9px] font-bold text-brand-accent hover:bg-brand-accent hover:text-foreground-onAccent disabled:opacity-40">Додати пресет</button>
+                          <button
+                            type="button"
+                            disabled={!isEditable}
+                            onClick={() => {
+                              const savedPlacements = Array.isArray(slot.defenseHeroes) && slot.defenseHeroes.length
+                                ? slot.defenseHeroes
+                                : (slot.defensePreset?.heroes || []);
+                              if (savedPlacements.length !== 5) {
+                                openDefenseEditor(slot);
+                                return;
+                              }
+                              startPresetFromBattle(slot, savedPlacements);
+                            }}
+                            className="mt-2 rounded-md border border-brand-accent/40 bg-brand-accent/10 px-2.5 py-1 text-[9px] font-bold text-brand-accent hover:bg-brand-accent hover:text-foreground-onAccent disabled:opacity-40"
+                          >
+                            {defenseHeroes.length === 5 ? 'Створити пресет із дефу' : 'Розставити героїв'}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -928,6 +1010,18 @@ export default function GvgBattle() {
                   <div className="mt-auto flex flex-col gap-2 border-t border-surface-border pt-3">
                     <button type="button" disabled={!isEditable || savingDefense} onClick={() => { setDefenseDraft({}); setSelectedDefenseHeroId(null); setDefenseModalError(''); }} className={buttonClass}>Очистити деф</button>
                     <button type="button" disabled={!isEditable || savingDefense || (placedHeroCount !== 0 && placedHeroCount !== 5)} onClick={saveDefenseLayout} className="inline-flex items-center justify-center rounded-lg bg-brand-accent px-3 py-2.5 text-xs font-black text-foreground-onAccent shadow-brand-accent transition hover:bg-brand-accent-hover disabled:cursor-not-allowed disabled:opacity-50">{savingDefense ? 'Збереження…' : placedHeroCount === 0 ? 'Зберегти без дефу' : 'Зберегти розстановку'}</button>
+                    <button
+                      type="button"
+                      disabled={!isEditable || savingDefense || placedHeroCount !== 5}
+                      onClick={() => startPresetFromBattle(editingSlot, defenseDraft, {
+                        opponentNickname: defenseNickname,
+                        battlePower: defenseBattlePower === '' ? null : Number(defenseBattlePower),
+                        mirrorNote: defenseMirrorNote,
+                      })}
+                      className={cn(buttonClass, 'border-brand-accent/50 text-brand-accent hover:bg-brand-accent/10')}
+                      title="Скопіювати ці 5 героїв у форму створення атакувального пресету"
+                    >Створити пресет з розстановки</button>
+                    <p className="text-[9px] leading-snug text-foreground-muted">Перехід перенесе героїв, клітинки та напрямки. Незбережені дані слота битви залишаться незбереженими.</p>
                     <button type="button" disabled={savingDefense} onClick={closeDefenseEditor} className={buttonClass}>Скасувати</button>
                   </div>
                 </aside>

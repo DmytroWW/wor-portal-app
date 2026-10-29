@@ -189,8 +189,32 @@ const buttonSecondaryClass =
 const buttonPrimaryClass =
   'inline-flex items-center justify-center gap-1 rounded-lg bg-brand-accent px-3 py-2 text-xs font-bold text-foreground-onAccent shadow-brand-accent transition-colors hover:bg-brand-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent disabled:cursor-not-allowed disabled:opacity-50';
 
-export default function GvgPage() {
-  const [mapType, setMapType] = useState('TOWER');
+const BATTLE_PRESET_DRAFT_STORAGE_KEY = 'gvg-battle-preset-draft';
+
+const readBattlePresetDraft = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(BATTLE_PRESET_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+
+    const value = JSON.parse(raw);
+    if (value?.source !== 'gvg-battle' || !Array.isArray(value.heroes)) return null;
+    return value;
+  } catch {
+    return null;
+  }
+};
+
+export default function GvgPage({ onBackToBattle }) {
+  const [pendingBattleDraft, setPendingBattleDraft] = useState(() => readBattlePresetDraft());
+  const [battleDraftApplied, setBattleDraftApplied] = useState(false);
+  const [battleDraftSourceTitle, setBattleDraftSourceTitle] = useState('');
+  const battleDraftApplyRef = useRef(false);
+  const [mapType, setMapType] = useState(() => {
+    const draft = readBattlePresetDraft();
+    return draft?.mapType === 'FORT' ? 'FORT' : 'TOWER';
+  });
   const [map, setMap] = useState(null);
   const [tiles, setTiles] = useState([]);
   const [heroes, setHeroes] = useState([]);
@@ -205,6 +229,8 @@ export default function GvgPage() {
   const [heroPlacements, setHeroPlacements] = useState({});
 
   const [attackCode, setAttackCode] = useState('');
+  const [codeAvailability, setCodeAvailability] = useState({ status: 'idle', message: '' });
+  const codeCheckSequence = useRef(0);
   const [attackName, setAttackName] = useState('');
   const [description, setDescription] = useState('');
 
@@ -322,9 +348,142 @@ export default function GvgPage() {
     loadDemonSoldiers();
   }, [loadHeroes, loadPresets, loadDemonSoldiers]);
 
+  // Завантажувати активну карту та її клітинки при відкритті сторінки
+  // і при перемиканні між TOWER / FORT. Без цього loading залишатиметься true.
   useEffect(() => {
     loadMap(mapType);
   }, [mapType, loadMap]);
+
+  // If navigation started in GvG War Room, import the current defense draft
+  // once the corresponding map, tiles and hero catalogue have loaded.
+  useEffect(() => {
+    if (!pendingBattleDraft || battleDraftApplyRef.current) return;
+
+    const requestedMapType = pendingBattleDraft.mapType === 'FORT' ? 'FORT' : 'TOWER';
+    if (requestedMapType !== mapType) {
+      setMapType(requestedMapType);
+      return;
+    }
+
+    if (!map || !tiles.length || !heroes.length) return;
+
+    const tileByCoordinates = new Map(tiles.map((tile) => [`${tile.x},${tile.y}`, tile]));
+    const tileById = new Map(tiles.map((tile) => [String(tile.id), tile]));
+    const heroesById = new Map(heroes.map((hero) => [String(hero.id), hero]));
+    const restoredPlacements = {};
+    const skippedHeroes = [];
+
+    for (const placement of pendingBattleDraft.heroes) {
+      if (placement?.heroId == null || placement?.tileId == null) continue;
+
+      const hero = heroesById.get(String(placement.heroId));
+      // Coordinates survive a map refresh/ID change; fallback to tileId only
+      // when the active map is the same map as the source defense.
+      const tile = tileByCoordinates.get(`${placement.x},${placement.y}`) ||
+        (String(pendingBattleDraft.mapId) === String(map.id)
+          ? tileById.get(String(placement.tileId))
+          : null);
+
+      if (!hero || !tile || tile.tileType === 'EMPTY') {
+        skippedHeroes.push(placement.heroId);
+        continue;
+      }
+
+      restoredPlacements[String(hero.id)] = {
+        heroId: hero.id,
+        tileId: tile.id,
+        x: tile.x,
+        y: tile.y,
+        attackDirection: placement.attackDirection || 'DOWN',
+      };
+    }
+
+    battleDraftApplyRef.current = true;
+
+    if (Object.keys(restoredPlacements).length) {
+      setOpenedPreset(null);
+      setHeroPlacements(restoredPlacements);
+      setSelectedHeroId(null);
+      setOriginalHeroIds([]);
+      setOriginalSoldierIds([]);
+      setAttackCode('');
+      setAttackName(pendingBattleDraft.suggestedName || `Контратака ${pendingBattleDraft.slotTitle || 'GvG'}`);
+      setDescription('');
+      setPresetSoldiers([]);
+      setSelectedDemonSoldierId('');
+      setDemonSoldierLevel(1);
+      setNotice(`Перенесено ${Object.keys(restoredPlacements).length} героїв з розстановки ${pendingBattleDraft.slotTitle || 'GvG'}. Введи код нової атаки та збережи пресет.`);
+      setBattleDraftApplied(true);
+      setBattleDraftSourceTitle(pendingBattleDraft.slotTitle || 'GvG');
+
+      if (skippedHeroes.length) {
+        setError(`Не вдалося перенести героїв: ${skippedHeroes.join(', ')}. Перевір активну мапу та клітинки.`);
+      }
+    } else {
+      setError('Не вдалося перенести розстановку з War Room: герої або клітинки не збіглися з активною мапою.');
+    }
+
+    try {
+      window.sessionStorage.removeItem(BATTLE_PRESET_DRAFT_STORAGE_KEY);
+    } catch {
+      // Session storage may be unavailable in restricted browser contexts.
+    }
+    setPendingBattleDraft(null);
+  }, [pendingBattleDraft, mapType, map, tiles, heroes]);
+
+  useEffect(() => {
+    const code = attackCode.trim();
+    const excludePresetId = openedPreset?.preset?.id;
+
+    if (!code) {
+      setCodeAvailability({ status: 'idle', message: '' });
+      return undefined;
+    }
+
+    if (code.length > 100) {
+      setCodeAvailability({
+        status: 'invalid',
+        message: 'Код не може перевищувати 100 символів.',
+      });
+      return undefined;
+    }
+
+    const requestId = ++codeCheckSequence.current;
+    setCodeAvailability({ status: 'checking', message: 'Перевіряємо код у базі гільдії…' });
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await api.get('/gvg/presets/code-availability', {
+          params: {
+            code,
+            ...(excludePresetId ? { excludePresetId } : {}),
+          },
+        });
+
+        if (requestId !== codeCheckSequence.current) return;
+
+        if (response.data?.available) {
+          setCodeAvailability({ status: 'available', message: 'Код вільний.' });
+        } else {
+          setCodeAvailability({
+            status: 'taken',
+            message: 'Такий код уже використовується в цій гільдії.',
+          });
+        }
+      } catch (err) {
+        if (requestId !== codeCheckSequence.current) return;
+        setCodeAvailability({
+          status: 'error',
+          message: 'Не вдалося перевірити код. Перевірка повториться під час збереження.',
+        });
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timeoutId);
+      codeCheckSequence.current += 1;
+    };
+  }, [attackCode, openedPreset?.preset?.id]);
 
   const toggleFavoriteHero = (heroId, event) => {
     event.stopPropagation();
@@ -505,6 +664,8 @@ export default function GvgPage() {
     setOpenedPreset(null);
     setOriginalHeroIds([]);
     setOriginalSoldierIds([]);
+    setBattleDraftApplied(false);
+    setBattleDraftSourceTitle('');
     setError('');
     setNotice('Запис скинуто.');
   };
@@ -550,6 +711,28 @@ export default function GvgPage() {
     setSaving(true);
 
     try {
+      // Повторно перевіряємо код безпосередньо перед збереженням, бо інший
+      // учасник гільдії міг створити такий код, поки сторінка була відкрита.
+      const availabilityResponse = await api.get('/gvg/presets/code-availability', {
+        params: {
+          code: attackCode.trim(),
+          ...(isEditingPreset && openedPreset?.preset?.id
+            ? { excludePresetId: openedPreset.preset.id }
+            : {}),
+        },
+      });
+
+      if (!availabilityResponse.data?.available) {
+        setCodeAvailability({
+          status: 'taken',
+          message: 'Такий код уже використовується в цій гільдії.',
+        });
+        setError('Не можна зберегти пресет: цей код уже зайнятий. Введи інший код.');
+        return;
+      }
+
+      setCodeAvailability({ status: 'available', message: 'Код вільний.' });
+
       if (isEditingPreset && openedPreset) {
         const presetId = openedPreset.preset.id;
 
@@ -854,6 +1037,18 @@ export default function GvgPage() {
   return (
     <div className="gvg-page mx-auto max-w-7xl space-y-2 px-3 pt-1 text-foreground-primary md:px-0">
       <style>{RESPONSIVE_TYPOGRAPHY_CSS}</style>
+      {battleDraftApplied ? (
+        <div role="status" className="flex flex-col gap-2 rounded-xl border border-brand-success/30 bg-brand-success/10 p-3 text-xs text-brand-success-hover sm:flex-row sm:items-center sm:justify-between">
+          <span>Розстановку з War Room ({battleDraftSourceTitle}) перенесено на карту. Перевір назву, введи код атаки та збережи пресет.</span>
+         <button
+           type="button"
+           onClick={() => onBackToBattle?.()}
+           className="inline-flex shrink-0 items-center justify-center rounded-lg border border-brand-success/40 px-3 py-1.5 font-bold transition hover:bg-brand-success/10"
+         >
+           ← Повернутися до War Room
+         </button>
+        </div>
+      ) : null}
       {!map ? (
         <div className="rounded-2xl border border-dashed border-surface-border bg-surface-raised p-6 text-center text-sm text-foreground-secondary">
           Для цього типу зараз немає активної GvG мапи.
@@ -1345,10 +1540,41 @@ export default function GvgPage() {
                     id="attack-code"
                     type="text"
                     value={attackCode}
-                    onChange={(event) => setAttackCode(event.target.value)}
+                    onChange={(event) => {
+                      setAttackCode(event.target.value);
+                      setError('');
+                    }}
                     placeholder="Напр. f1-01"
-                    className={inputClass}
+                    maxLength={100}
+                    autoComplete="off"
+                    aria-describedby="attack-code-status"
+                    aria-invalid={codeAvailability.status === 'taken' || codeAvailability.status === 'invalid'}
+                    className={`${inputClass} ${
+                      codeAvailability.status === 'taken' || codeAvailability.status === 'invalid'
+                        ? 'border-brand-danger focus:border-brand-danger'
+                        : codeAvailability.status === 'available'
+                          ? 'border-brand-success focus:border-brand-success'
+                          : ''
+                    }`}
                   />
+                  <p
+                    id="attack-code-status"
+                    role="status"
+                    aria-live="polite"
+                    className={`mt-1 min-h-4 text-[11px] ${
+                      codeAvailability.status === 'available'
+                        ? 'text-brand-success-hover'
+                        : codeAvailability.status === 'taken' || codeAvailability.status === 'invalid'
+                          ? 'text-brand-danger-hover'
+                          : codeAvailability.status === 'checking'
+                            ? 'text-foreground-muted'
+                            : codeAvailability.status === 'error'
+                              ? 'text-brand-accent-hover'
+                              : 'text-transparent'
+                    }`}
+                  >
+                    {codeAvailability.message || ' '}
+                  </p>
                 </div>
 
                 <div>
@@ -1617,7 +1843,7 @@ export default function GvgPage() {
                   <button
                     type="button"
                     onClick={savePreset}
-                    disabled={saving}
+                    disabled={saving || codeAvailability.status === 'taken' || codeAvailability.status === 'invalid'}
                     className={`${buttonPrimaryClass} flex-1`}
                   >
                     {saving ? 'Збереження…' : isEditingPreset ? 'Оновити пресет' : 'Зберегти'}
@@ -1671,7 +1897,10 @@ export default function GvgPage() {
                             aria-pressed={isOpened}
                             className="min-w-0 flex-1 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-accent"
                           >
-                            <div className="font-mono text-xs font-bold text-brand-accent">
+                            <div
+                              className="max-w-full truncate font-mono text-xs font-bold text-brand-accent"
+                              title={preset.presetCode}
+                            >
                               {preset.presetCode}
                             </div>
                             <div className="mt-0.5 truncate text-[11px] text-foreground-secondary">
