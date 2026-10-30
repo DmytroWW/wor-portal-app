@@ -217,7 +217,7 @@ function SoldierPortrait({ soldier, className = 'h-7 w-7' }) {
   );
 }
 
-function PresetMiniature({ snapshot, heroesById, soldiersById, onCopy, copied }) {
+function PresetMiniature({ snapshot, heroesById, soldiersById, onCopy, onDetails, copied }) {
   const preset = snapshot?.preset;
   const heroes = (snapshot?.heroes || []).map((item) => heroesById.get(String(item.heroId))).filter(Boolean);
   const soldiers = (snapshot?.soldiers || []).map((item) => {
@@ -228,22 +228,37 @@ function PresetMiniature({ snapshot, heroesById, soldiersById, onCopy, copied })
   return (
     <article className="min-w-0 rounded-lg border border-surface-border bg-surface-base p-2 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-[11px] font-bold text-foreground-primary" title={preset?.name || preset?.presetCode}>
+        <button
+          type="button"
+          onClick={() => onDetails(preset)}
+          className="min-w-0 flex-1 text-left"
+          title="Відкрити повні деталі пресету"
+        >
+          <p className="truncate text-[11px] font-bold text-foreground-primary hover:text-brand-accent" title={preset?.name || preset?.presetCode}>
             {preset?.name || preset?.presetCode || 'Пресет атаки'}
           </p>
           <p className="truncate font-mono text-[10px] text-brand-accent" title={preset?.presetCode}>
             {preset?.presetCode || 'Без коду'}
           </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => onCopy(preset)}
-          disabled={!preset?.presetCode}
-          className="shrink-0 rounded-md border border-brand-accent/40 bg-brand-accent/10 px-2 py-1 text-[9px] font-bold text-brand-accent transition hover:bg-brand-accent hover:text-foreground-onAccent disabled:opacity-40"
-        >
-          {copied ? 'Скопійовано' : 'Копіювати'}
         </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onDetails(preset)}
+            className="rounded-md border border-surface-border bg-surface-sunken px-1.5 py-1 text-[9px] font-bold text-foreground-secondary transition hover:border-brand-accent/50 hover:text-brand-accent"
+            title="Детальніше про пресет"
+          >
+            Деталі
+          </button>
+          <button
+            type="button"
+            onClick={() => onCopy(preset)}
+            disabled={!preset?.presetCode}
+            className="rounded-md border border-brand-accent/40 bg-brand-accent/10 px-1.5 py-1 text-[9px] font-bold text-brand-accent transition hover:bg-brand-accent hover:text-foreground-onAccent disabled:opacity-40"
+          >
+            {copied ? '✓' : 'Копіювати'}
+          </button>
+        </div>
       </div>
       {preset?.description ? (
         <p className="mt-1 line-clamp-2 text-[9px] leading-snug text-foreground-muted" title={preset.description}>
@@ -256,6 +271,204 @@ function PresetMiniature({ snapshot, heroesById, soldiersById, onCopy, copied })
         {!heroes.length && !soldiers.length ? <span className="text-[9px] text-foreground-muted">Немає мініатюр</span> : null}
       </div>
     </article>
+  );
+}
+
+
+function PresetDetailsModal({
+  preset,
+  details,
+  heroesById,
+  soldiersById,
+  loading,
+  error,
+  copied,
+  onCopy,
+  onClose,
+}) {
+  const fullPreset = details?.preset || preset || {};
+  const detailHeroes = (details?.heroes || []).map((item, index) => {
+    const heroId = item.heroId ?? item.hero?.id ?? item.id;
+    const hero = heroesById.get(String(heroId)) || item.hero || {
+      id: heroId ?? `hero-${index}`,
+      name: item.heroName || item.name || `Герой #${heroId ?? index + 1}`,
+      imageSlug: item.imageSlug || item.heroImageSlug,
+      rarity: item.rarity || item.heroRarity,
+      className: item.className || item.heroClass,
+    };
+    return {
+      key: `${heroId ?? index}-${item.tileId ?? item.x ?? index}`,
+      hero,
+      x: item.x ?? item.tile?.x,
+      y: item.y ?? item.tile?.y,
+      direction: item.attackDirection || 'DOWN',
+    };
+  });
+
+  const detailSoldiers = (details?.soldiers || []).map((item, index) => {
+    const soldierId = item.soldierId ?? item.demonSoldierId ?? item.soldier?.id ?? item.demonSoldier?.id ?? item.id;
+    const soldier = soldiersById.get(String(soldierId)) || item.soldier || item.demonSoldier || {
+      id: soldierId ?? `soldier-${index}`,
+      name: item.soldierName || item.demonSoldierName || item.name || `Демон-солдат #${soldierId ?? index + 1}`,
+      imageSlug: item.imageSlug || item.soldierImageSlug,
+      rarity: item.rarity,
+    };
+    return {
+      key: `${soldierId ?? index}-${index}`,
+      soldier,
+      level: item.level ?? soldier.level ?? 1,
+    };
+  });
+
+  const map = details?.map;
+  const directionLabels = {
+    UP: 'Вгору',
+    RIGHT: 'Праворуч',
+    DOWN: 'Вниз',
+    LEFT: 'Ліворуч',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[180] flex items-center justify-center bg-black/75 p-2 sm:p-4"
+      role="presentation"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="battle-preset-details-title"
+        className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface-raised text-foreground-primary shadow-2xl"
+        onKeyDown={(event) => { if (event.key === 'Escape') onClose(); }}
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-surface-border bg-surface-base/70 p-3 sm:p-4">
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-brand-accent">Деталі атакувального пресету</p>
+            <h2 id="battle-preset-details-title" className="mt-1 truncate text-sm font-black sm:text-base">
+              {fullPreset.name || fullPreset.presetCode || 'Пресет атаки'}
+            </h2>
+            <p className="mt-1 break-all font-mono text-[11px] font-semibold text-brand-accent">
+              {fullPreset.presetCode || 'Код відсутній'}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onCopy(fullPreset)}
+              disabled={!fullPreset.presetCode}
+              className="rounded-lg border border-brand-accent/40 bg-brand-accent/10 px-2.5 py-1.5 text-[10px] font-bold text-brand-accent transition hover:bg-brand-accent hover:text-foreground-onAccent disabled:opacity-40"
+            >
+              {copied ? 'Скопійовано' : 'Копіювати код'}
+            </button>
+            <button type="button" onClick={onClose} aria-label="Закрити деталі пресету" className="rounded-lg border border-surface-border bg-surface-sunken px-2.5 py-1.5 text-xs font-bold text-foreground-secondary hover:text-foreground-primary">
+              ✕
+            </button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
+          {loading ? (
+            <div className="rounded-xl border border-dashed border-surface-border p-8 text-center text-xs text-foreground-muted">
+              Завантаження повної інформації про пресет…
+            </div>
+          ) : error ? (
+            <div role="alert" className="rounded-lg border border-brand-danger/30 bg-brand-danger/10 p-3 text-xs text-brand-danger-hover">
+              {error}
+            </div>
+          ) : details ? (
+            <>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+                <section className="min-w-0 rounded-xl border border-surface-border bg-surface-base p-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wide text-foreground-muted">Опис атаки</h3>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground-secondary">
+                    {fullPreset.description?.trim() || 'Опис для цього пресету не додано.'}
+                  </p>
+                </section>
+                <section className="rounded-xl border border-surface-border bg-surface-base p-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wide text-foreground-muted">Інформація</h3>
+                  <dl className="mt-2 space-y-2 text-[10px]">
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="text-foreground-muted">Мапа</dt>
+                      <dd className="text-right font-semibold text-foreground-primary">{map?.mapType || map?.type || map?.name || '—'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="text-foreground-muted">Сезон</dt>
+                      <dd className="text-right font-semibold text-foreground-primary">{map?.seasonNumber ?? '—'}</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="text-foreground-muted">Герої</dt>
+                      <dd className="text-right font-semibold text-foreground-primary">{detailHeroes.length}/5</dd>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <dt className="text-foreground-muted">Демони-солдати</dt>
+                      <dd className="text-right font-semibold text-foreground-primary">{detailSoldiers.length}</dd>
+                    </div>
+                    {fullPreset.createdAt ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <dt className="text-foreground-muted">Створено</dt>
+                        <dd className="text-right font-semibold text-foreground-primary">{new Date(fullPreset.createdAt).toLocaleString()}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </section>
+              </div>
+
+              <section className="rounded-xl border border-surface-border bg-surface-base p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-black uppercase tracking-wide text-brand-accent">Герої атаки</h3>
+                  <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[9px] font-bold text-foreground-muted">{detailHeroes.length}/5</span>
+                </div>
+                {detailHeroes.length ? (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+                    {detailHeroes.map(({ key, hero, x, y, direction }) => (
+                      <article key={key} className="flex min-w-0 flex-col items-center rounded-lg border border-surface-border bg-surface-raised p-2 text-center">
+                        <HeroPortrait hero={hero} className="h-14 w-14 rounded-lg ring-2" />
+                        <p className="mt-2 w-full truncate text-[10px] font-bold" title={hero.name}>{hero.name}</p>
+                        <p className="w-full truncate text-[9px] text-foreground-muted">{hero.className || 'Герой'}</p>
+                        <p className="mt-1 text-[9px] font-mono text-brand-success-hover">
+                          {x != null && y != null ? `Клітинка (${x}, ${y})` : 'Позиція не вказана'}
+                        </p>
+                        <p className="text-[9px] text-foreground-muted">Напрямок: {directionLabels[direction] || direction}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-foreground-muted">Інформація про героїв відсутня.</p>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-surface-border bg-surface-base p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-black uppercase tracking-wide text-brand-accent">Демони-солдати</h3>
+                  <span className="rounded-full border border-surface-border bg-surface-sunken px-2 py-0.5 text-[9px] font-bold text-foreground-muted">{detailSoldiers.length}</span>
+                </div>
+                {detailSoldiers.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {detailSoldiers.map(({ key, soldier, level }) => (
+                      <article key={key} className="flex min-w-0 items-center gap-2 rounded-lg border border-surface-border bg-surface-raised p-2">
+                        <SoldierPortrait soldier={soldier} className="h-11 w-11 rounded-lg" />
+                        <div className="min-w-0">
+                          <p className="max-w-[180px] truncate text-[10px] font-bold" title={soldier.name}>{soldier.name}</p>
+                          <p className="text-[9px] text-foreground-muted">{soldier.rarity || 'Демон-солдат'} · рівень {level}</p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-foreground-muted">Демони-солдати до цього пресету не призначені.</p>
+                )}
+              </section>
+            </>
+          ) : null}
+        </div>
+
+        <footer className="flex justify-end border-t border-surface-border bg-surface-base/50 p-3">
+          <button type="button" onClick={onClose} className="rounded-lg border border-surface-border bg-surface-sunken px-4 py-2 text-xs font-semibold text-foreground-secondary hover:text-foreground-primary">
+            Закрити
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 
@@ -283,6 +496,11 @@ export default function GvgBattle({ onCreatePreset }) {
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
   const [copiedPresetId, setCopiedPresetId] = useState(null);
+  const [attackDetailsPreset, setAttackDetailsPreset] = useState(null);
+  const [attackDetails, setAttackDetails] = useState(null);
+  const [loadingAttackDetails, setLoadingAttackDetails] = useState(false);
+  const [attackDetailsError, setAttackDetailsError] = useState('');
+  const attackDetailsRequestRef = useRef(0);
   const [defenseEditorSlotId, setDefenseEditorSlotId] = useState(null);
   const [defenseDraft, setDefenseDraft] = useState({});
   const [selectedDefenseHeroId, setSelectedDefenseHeroId] = useState(null);
@@ -471,6 +689,38 @@ export default function GvgBattle({ onCreatePreset }) {
     } catch {
       setError('Не вдалося скопіювати код пресету.');
     }
+  };
+
+  const openAttackDetails = async (preset) => {
+    if (!preset?.id) return;
+
+    const requestId = ++attackDetailsRequestRef.current;
+    setAttackDetailsPreset(preset);
+    setAttackDetails(null);
+    setAttackDetailsError('');
+    setLoadingAttackDetails(true);
+
+    try {
+      const response = await api.get(`/gvg/presets/${preset.id}/details`);
+      if (requestId !== attackDetailsRequestRef.current) return;
+      setAttackDetails(response.data);
+    } catch (err) {
+      if (requestId === attackDetailsRequestRef.current) {
+        setAttackDetailsError(errorMessage(err));
+      }
+    } finally {
+      if (requestId === attackDetailsRequestRef.current) {
+        setLoadingAttackDetails(false);
+      }
+    }
+  };
+
+  const closeAttackDetails = () => {
+    attackDetailsRequestRef.current += 1;
+    setAttackDetailsPreset(null);
+    setAttackDetails(null);
+    setAttackDetailsError('');
+    setLoadingAttackDetails(false);
   };
 
   const currentCalib = useMemo(() => interpolateGridCalibration(viewportWidth, mapType), [viewportWidth, mapType]);
@@ -838,7 +1088,7 @@ export default function GvgBattle({ onCreatePreset }) {
                       </div>
                       {attackCards.length ? (
                         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                          {visibleAttacks.map((snapshot) => <PresetMiniature key={snapshot.preset.id} snapshot={snapshot} heroesById={heroesById} soldiersById={soldiersById} onCopy={copyPresetCode} copied={copiedPresetId === snapshot.preset.id} />)}
+                          {visibleAttacks.map((snapshot) => <PresetMiniature key={snapshot.preset.id} snapshot={snapshot} heroesById={heroesById} soldiersById={soldiersById} onCopy={copyPresetCode} onDetails={openAttackDetails} copied={copiedPresetId === snapshot.preset.id} />)}
                         </div>
                       ) : (
                         <div className="flex min-h-[100px] flex-col items-center justify-center rounded-lg border border-dashed border-surface-border bg-surface-base/70 p-3 text-center">
@@ -1082,6 +1332,20 @@ export default function GvgBattle({ onCreatePreset }) {
         );
       })() : null}
 
+      {attackDetailsPreset ? (
+        <PresetDetailsModal
+          preset={attackDetailsPreset}
+          details={attackDetails}
+          heroesById={heroesById}
+          soldiersById={soldiersById}
+          loading={loadingAttackDetails}
+          error={attackDetailsError}
+          copied={copiedPresetId === attackDetailsPreset.id}
+          onCopy={copyPresetCode}
+          onClose={closeAttackDetails}
+        />
+      ) : null}
+
       {newRoundOpen ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-3" role="presentation">
           <section role="dialog" aria-modal="true" aria-labelledby="new-round-title" className="w-full max-w-md rounded-xl border border-surface-border bg-surface-raised p-4 shadow-2xl">
@@ -1131,3 +1395,4 @@ export default function GvgBattle({ onCreatePreset }) {
     </div>
   );
 }
+
